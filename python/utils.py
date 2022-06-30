@@ -1,0 +1,269 @@
+import os
+import constants
+import numpy as np
+
+
+def getOrbData(year=21, doy=58, prn=27, man="M1"):
+    """
+    This function reads orbit files and stores the data in a dictionary names orbitData.
+    This data is necessary to simulate measurements for yaw angles - and to compute nadir and azimuth angles.
+    :param year: year as written in orb file name
+    :param doy: day of year
+    :param prn: prn of satellite (GPS block IIF)
+    :param man: maneuver type - can be N1, N2, M1, M2
+    :return: dictionary containing data read from .orb file
+    """
+    orbitData = {}
+
+    orbitData['mjd'] = []
+    orbitData['x'] = []
+    orbitData['y'] = []
+    orbitData['z'] = []
+    orbitData['vx'] = []
+    orbitData['vy'] = []
+    orbitData['vz'] = []
+    orbitData['beta'] = []
+    orbitData['usun'] = []
+    orbitData['yaw'] = []
+    orbitData['shadow_flag'] = []
+
+    filename = "YAW" + str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + ".orb"
+    filepath = os.path.join(constants.OUT, filename)
+
+    file = open(filepath)
+    lines = file.readlines()
+    for line in lines:
+        items = [x for x in line.split(' ') if x!=""]
+        orbitData['mjd'].append(float(items[3]))
+
+        orbitData['x'].append(float(items[4]))
+        orbitData['y'].append(float(items[5]))
+        orbitData['z'].append(float(items[6]))
+
+        orbitData['vx'].append(float(items[7]))
+        orbitData['vy'].append(float(items[8]))
+        orbitData['vz'].append(float(items[9]))
+
+        orbitData['beta'].append(float(items[10]))
+        orbitData['usun'].append(float(items[11]))
+        orbitData['yaw'].append(float(items[12]))
+        orbitData['shadow_flag'].append(int(items[13]))
+    return orbitData
+
+
+def getResData(year=21, doy=58, prn=27, man="M1"):
+    """
+    This function reads residual files and stores the data in a dictionary names residualData.
+    This data is necessary to estimate yaw angles.
+    :param year: year as written in orb file name
+    :param doy: day of year
+    :param prn: prn of satellite (GPS block IIF)
+    :param man: maneuver type - can be N1, N2, M1, M2
+    :return: dictionary containing data read from .res file
+    """
+    residualData = {}
+
+    filename = "YAW" + str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + ".res"
+    filepath = os.path.join(constants.OUT, filename)
+
+    file = open(filepath)
+    lines = file.readlines()
+    for line in lines:
+        items = [x for x in line.split(' ') if x!=""]
+        station_index = int(items[0])
+        if not station_index in residualData.keys():
+            residualData[station_index] = {}
+            residualData[station_index]['mjd'] = []
+            residualData[station_index]['rk'] = []
+            residualData[station_index]['azi'] = []
+            residualData[station_index]['ele'] = []
+
+        residualData[station_index]['mjd'].append(float(items[2]))
+        residualData[station_index]['rk'].append(float(items[3]))
+        residualData[station_index]['azi'].append(float(items[4]))
+        residualData[station_index]['ele'].append(float(items[5]))
+    return residualData
+
+
+def trimResData(residualData, orbitData, stationsData):
+    stationsList = getStationsList(orbitData, stationsData)
+
+    trimmedResData = {}
+    for item in stationsList.keys():
+        try:
+            trimmedResData[item] = residualData[item]
+        except KeyError:
+            pass
+    return trimmedResData
+
+
+def getEpochsArray(residualData):
+    epochs = []
+    for station_index in residualData.keys():
+        epochs = epochs + list(set(residualData[station_index]['mjd']) - set(epochs))
+    epochs.sort()
+    return epochs
+
+
+def trimResDataWindow(residualData, startEpoch, endEpoch):
+    epochs = getEpochsArray(residualData)
+    epochsList = epochs[epochs.index(startEpoch) : epochs.index(endEpoch)]
+    trimmedResData = {}
+
+    for station_index in residualData.keys():
+        mjd = residualData[station_index]['mjd']
+        if set(epochsList).issubset(mjd):
+            indices = [mjd.index(item) for item in epochsList]
+
+            trimmedResData[station_index] = {}
+            trimmedResData[station_index]['mjd'] = []
+            trimmedResData[station_index]['rk'] = []
+            trimmedResData[station_index]['azi'] = []
+            trimmedResData[station_index]['ele'] = []
+
+            for index in indices:
+                trimmedResData[station_index]['mjd'].append(residualData[station_index]['mjd'][index])
+                trimmedResData[station_index]['rk'].append(residualData[station_index]['rk'][index])
+                trimmedResData[station_index]['azi'].append(residualData[station_index]['azi'][index])
+                trimmedResData[station_index]['ele'].append(residualData[station_index]['ele'][index])
+    return trimmedResData
+
+
+def getLonLat(x, y, z):
+    """
+    This function gets a position in x, y, z (inertial frame - ECEF) and returns the longitude and latitude (in radians) in a tuple.
+    """
+    lon = np.arctan2(y, x)
+    lat = np.arctan2(z, np.sqrt(x**2 + y**2))
+    return (lon, lat)
+
+
+def getAzimuthElevation(x_sat, y_sat, z_sat, stationIndex, stationsData):
+    """
+    This function computes the azimuth and elevation of a satellite from a given station.
+    :param x_sat: satellite x position - ECEF
+    :param y_sat: satellite y position - ECEF
+    :param z_sat: satellite z position - ECEF
+    :param stationIndex: index of wanted station - ECEF
+    :param stationsData: dictionary given by getStationsList - contains all stations positions, name and indices
+    :return: azimuth and elevation angles in radians, grouped in a tuple
+    """
+    x_station = stationsData[stationIndex]['x']
+    y_station = stationsData[stationIndex]['y']
+    z_station = stationsData[stationIndex]['z']
+
+    r_station = np.array([x_station, y_station, z_station])
+    r_sat = np.array([x_sat, y_sat, z_sat])
+    r_trans = r_sat - r_station
+    lon, lat = getLonLat(x_station, y_station, z_station)
+
+    Q1 = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    R2 = np.array([[np.cos((np.pi/2)-lat), 0, -np.sin((np.pi/2)-lat)], [0, 1, 0], [np.sin((np.pi/2)-lat), 0, np.cos((np.pi/2)-lat)]]) # R2((np.pi/2)-lat)
+    R3 = np.array([[np.cos(lon), np.sin(lon), 0], [-np.sin(lon), np.cos(lon), 0], [0, 0, 1]]) # R3(lon)
+    r4 = Q1.dot(R2).dot(R3).dot(r_trans)
+
+    a = np.arctan2(r4[1], r4[0]) + np.pi*2
+    if np.degrees(a) >= 360:
+        a = np.arctan2(r4[1], r4[0])
+
+    e = np.arctan2(r4[2], np.sqrt(r4[0]**2 + r4[1]**2))
+    return (a, e)
+
+
+def isVisible(x_sat, y_sat, z_sat, stationIndex, stationsData):
+    """
+    This function tells us whether a satellite is visible from a certain station based on satellite position at a certain epoch.
+    :param x_sat: satellite x position - ECEF
+    :param y_sat: satellite y position - ECEF
+    :param z_sat: satellite z position - ECEF
+    :param stationIndex: index of wanted station - ECEF
+    :param stationsData: dictionary given by getStationsList - contains all stations positions, name and indices
+    :return: True if satellite elevation is above constants.ELEVATION_MASK and False otherwise
+    """
+    if getAzimuthElevation(x_sat, y_sat, z_sat, stationIndex, stationsData)[1] >= np.deg2rad(constants.ELEVATION_MASK):
+        return True
+    else:
+        return False
+
+
+def getStationsData():
+    """
+    This function reads all stations from the file GPSYAW.crd.
+    :return: stationsData is a dictionary containing station indices as keys, and their positions (x, y, z and the name) as values
+    """
+    stationsData = {}
+
+    file = open(constants.STATION_COORDINATE_LIST)
+    lines = file.readlines()
+    for line in lines:
+        items = [x for x in line.split(' ') if x != ""]
+        if len(items) > 3:
+            stationsData[int(items[0])] = {}
+            stationsData[int(items[0])]['x'] = float(items[1])
+            stationsData[int(items[0])]['y'] = float(items[2])
+            stationsData[int(items[0])]['z'] = float(items[3])
+            stationsData[int(items[0])]['name'] = items[4].strip()
+    return stationsData
+
+
+def getStationsList(orbitData, stationsData):
+    """
+    This function computes an intersection between .orb and .crd files.
+    We want to see which stations see the satellite for the whole duration of the maneuver.
+    :param orbitData: dictionary containing data read from .orb file, created by getOrbData()
+    :param stationsData: dictionary with stations coordinates created by getStationsData()
+    :return: dictionary containing list of stations with index and name, fitted to given .orb file
+    """
+    stations_list = {}
+    for station_index in stationsData.keys():
+        if (isVisible(x_sat=orbitData['x'][0],  y_sat=orbitData['y'][0],  z_sat=orbitData['z'][0],
+                      stationIndex=station_index, stationsData=stationsData) and
+           isVisible(x_sat=orbitData['x'][-1], y_sat=orbitData['y'][-1], z_sat=orbitData['z'][-1],
+                     stationIndex=station_index, stationsData=stationsData)):
+            stations_list[station_index] = {}
+            stations_list[station_index]['name'] = stationsData[station_index]['name']
+            stations_list[station_index]['x'] = stationsData[station_index]['x']
+            stations_list[station_index]['y'] = stationsData[station_index]['y']
+            stations_list[station_index]['z'] = stationsData[station_index]['z']
+    return stations_list
+
+
+def residual(azi, ele, yaw, noise=0.005):
+    """
+    This function computes a residual sample at a given epoch for a given station.
+    :param azi: azimuth angle in radians
+    :param ele: elevation angle in radians
+    :param yaw: nominal yaw angle in degrees
+    :param noise: maximum value of added noise in meters
+    :return: residual sample rk in meters
+    """
+    yaw = np.deg2rad(yaw)
+    rk = constants.PCO_x * np.cos(yaw) * np.sin(azi) * np.sin(ele + np.pi/2) + \
+         constants.PCO_x * np.sin(yaw) * np.cos(azi) * np.sin(ele + np.pi/2) + \
+         np.random.normal(0, noise, 1)[0]
+    return rk
+
+
+def simulatedResiduals(stationsList, orbitData, year=21, doy=58, prn=27, man="M1S"):
+    """
+    This function reates a fake residual log file, in the exact same format as the .res files created by BPE.
+    This format is used in order to minimize the written code - the same functions which are used for
+    real .res files work on simulated residuals as well.
+    :param stationsList: dictionary containing information on stations which see the satellite for the whole duration of the maneuver
+    :param orbitData: dictionary containing data read from .orb file
+    :param prn: satellite PRN code
+    :param filename: name given to fake .res file
+    :return: writes .res file, with no return value
+    """
+    filename = "YAW" + str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + ".res"
+    filepath = os.path.join(constants.OUT, filename)
+    file = open(filepath, "w")
+
+    for i in range(0, len(orbitData['x'])):
+        for station_index in stationsList.keys():
+            azi, ele = getAzimuthElevation(orbitData['x'][i], orbitData['y'][i], orbitData['z'][i], station_index, stationsList)
+            rk = residual(azi, ele, orbitData['yaw'][i])
+            mjd = orbitData['mjd'][i]
+            line = "{} {} {} {} {} {}\n".format(station_index, prn, mjd, rk, np.rad2deg(azi), np.rad2deg(ele))
+            file.write(line)
+    file.close()
