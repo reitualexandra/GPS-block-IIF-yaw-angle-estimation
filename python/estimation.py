@@ -4,7 +4,7 @@ import numpy as np
 from scipy.linalg import block_diag
 
 
-def solveLSEModel1(residualData):
+def solveLSEModel1(residualData, orbitData, stationsData):
     """
 
     :param residualData:
@@ -21,21 +21,26 @@ def solveLSEModel1(residualData):
             if epoch in residualData[station_index]['mjd']:
                 epoch_index = residualData[station_index]['mjd'].index(epoch)
 
+                r_sat, v_sat = utils.getSatellitePositionVelocity(orbitData, epoch)
+                azi, nad = utils.getAzimuthNadirSatellite(r_sat, v_sat, station_index, stationsData)
+                # azi, ele = utils.getAzimuthElevationTopocentric(r_sat, station_index, stationsData)
+
                 rk.append(residualData[station_index]['rk'][epoch_index])
-                ak.append(residualData[station_index]['azi'][epoch_index])
-                nk.append(residualData[station_index]['ele'][epoch_index]+90)
+                ak.append(azi)
+                nk.append(nad)
         A = np.zeros((len(rk), 2))
         for i in range(0, len(rk)):
-            A[i][0] = np.sin(np.deg2rad(nk[i])) * np.sin(np.deg2rad(ak[i]))
-            A[i][1] = np.sin(np.deg2rad(nk[i])) * np.cos(np.deg2rad(ak[i]))
+            A[i][0] = np.sin(nk[i]) * np.sin(ak[i])
+            A[i][1] = np.sin(nk[i]) * np.cos([i])
 
         AtA = A.transpose().dot(A)
         x = np.linalg.inv(AtA).dot(A.transpose()).dot(rk)
         yaw.append(np.rad2deg(np.arctan2(x[1], x[0])))
+        # yaw.append(np.rad2deg(np.arctan(x[1]/ x[0])))
     return (epochs, yaw)
 
 
-def solveLSEModel1WithRestraint(residualData):
+def solveLSEModel1WithRestraint(residualData, orbitData, stationsData):
     """
 
     :param residualData:
@@ -55,13 +60,17 @@ def solveLSEModel1WithRestraint(residualData):
             if epoch in residualData[station_index]['mjd']:
                 epoch_index = residualData[station_index]['mjd'].index(epoch)
 
+                r_sat, v_sat = utils.getSatellitePositionVelocity(orbitData, epoch)
+                azi, nad = utils.getAzimuthNadirSatellite(r_sat, v_sat, station_index, stationsData)
+                # azi, ele = utils.getAzimuthElevationTopocentric(r_sat, station_index, stationsData)
+
                 rk.append(residualData[station_index]['rk'][epoch_index])
-                ak.append(residualData[station_index]['azi'][epoch_index])
-                nk.append(residualData[station_index]['ele'][epoch_index]+90)
+                ak.append(azi)
+                nk.append(nad)
         A = np.zeros((len(rk), 2))
         for i in range(0, len(rk)):
-            A[i][0] = np.sin(np.deg2rad(nk[i])) * np.sin(np.deg2rad(ak[i]))
-            A[i][1] = np.sin(np.deg2rad(nk[i])) * np.cos(np.deg2rad(ak[i]))
+            A[i][0] = np.sin(nk[i]) * np.sin(ak[i])
+            A[i][1] = np.sin(nk[i]) * np.cos(ak[i])
 
 
         AtA = A.transpose().dot(A)

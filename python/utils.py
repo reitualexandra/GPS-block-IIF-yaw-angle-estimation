@@ -51,6 +51,14 @@ def getOrbData(year=21, doy=58, prn=27, man="M1"):
     return orbitData
 
 
+def getSatellitePositionVelocity(orbitData, epoch):
+    for i in range(0, len(orbitData['mjd'])):
+        if orbitData['mjd'][i] == epoch:
+            r_sat = np.array([orbitData['x'][i], orbitData['y'][i], orbitData['z'][i]])
+            v_sat = np.array([orbitData['vx'][i], orbitData['vy'][i], orbitData['vz'][i]])
+    return (r_sat, v_sat)
+
+
 def getResData(year=21, doy=58, prn=27, man="M1"):
     """
     This function reads residual files and stores the data in a dictionary names residualData.
@@ -138,7 +146,27 @@ def getLonLat(x, y, z):
     return (lon, lat)
 
 
-def getAzimuthElevation(x_sat, y_sat, z_sat, stationIndex, stationsData):
+def getAzimuthNadirSatellite(r_sat, v_sat, stationIndex, stationsData):
+    x_station = stationsData[stationIndex]['x']
+    y_station = stationsData[stationIndex]['y']
+    z_station = stationsData[stationIndex]['z']
+
+    r_st = np.array([x_station, y_station, z_station])
+    r = np.sqrt(r_sat[0]**2 + r_sat[1]**2 + r_sat[2]**2)
+
+    h = np.cross(r_sat, v_sat)
+    gamma = -(1/r**2)*(r_st.dot(r_sat))
+    R_proj = r_st + gamma*r_sat
+    R_r = r_st - r_sat
+    nad_nominator = np.sqrt(R_r[0]**2 + R_r[1]**2 + R_r[2]**2)*r
+
+    azi = np.arctan2(R_proj.dot(v_sat), (1/r)*(R_proj.dot(h)))
+    nad = np.arccos(-(R_r.dot(r_sat))/nad_nominator)
+
+    return (azi, nad)
+
+
+def getAzimuthElevationTopocentric(r_sat, stationIndex, stationsData):
     """
     This function computes the azimuth and elevation of a satellite from a given station.
     :param x_sat: satellite x position - ECEF
@@ -153,7 +181,6 @@ def getAzimuthElevation(x_sat, y_sat, z_sat, stationIndex, stationsData):
     z_station = stationsData[stationIndex]['z']
 
     r_station = np.array([x_station, y_station, z_station])
-    r_sat = np.array([x_sat, y_sat, z_sat])
     r_trans = r_sat - r_station
     lon, lat = getLonLat(x_station, y_station, z_station)
 
@@ -170,7 +197,7 @@ def getAzimuthElevation(x_sat, y_sat, z_sat, stationIndex, stationsData):
     return (a, e)
 
 
-def isVisible(x_sat, y_sat, z_sat, stationIndex, stationsData):
+def isVisible(r_sat, stationIndex, stationsData):
     """
     This function tells us whether a satellite is visible from a certain station based on satellite position at a certain epoch.
     :param x_sat: satellite x position - ECEF
@@ -180,7 +207,7 @@ def isVisible(x_sat, y_sat, z_sat, stationIndex, stationsData):
     :param stationsData: dictionary given by getStationsList - contains all stations positions, name and indices
     :return: True if satellite elevation is above constants.ELEVATION_MASK and False otherwise
     """
-    if getAzimuthElevation(x_sat, y_sat, z_sat, stationIndex, stationsData)[1] >= np.deg2rad(constants.ELEVATION_MASK):
+    if getAzimuthElevationTopocentric(r_sat, stationIndex, stationsData)[1] >= np.deg2rad(constants.ELEVATION_MASK):
         return True
     else:
         return False
@@ -216,10 +243,10 @@ def getStationsList(orbitData, stationsData):
     """
     stations_list = {}
     for station_index in stationsData.keys():
-        if (isVisible(x_sat=orbitData['x'][0],  y_sat=orbitData['y'][0],  z_sat=orbitData['z'][0],
-                      stationIndex=station_index, stationsData=stationsData) and
-           isVisible(x_sat=orbitData['x'][-1], y_sat=orbitData['y'][-1], z_sat=orbitData['z'][-1],
-                     stationIndex=station_index, stationsData=stationsData)):
+        r_sat_init = np.array([orbitData['x'][0], orbitData['y'][0],  orbitData['z'][0]])
+        r_sat_end = np.array([orbitData['x'][-1], orbitData['y'][-1], orbitData['z'][-1]])
+        if (isVisible(r_sat_init, stationIndex=station_index, stationsData=stationsData) and
+            isVisible(r_sat_end, stationIndex=station_index, stationsData=stationsData)):
             stations_list[station_index] = {}
             stations_list[station_index]['name'] = stationsData[station_index]['name']
             stations_list[station_index]['x'] = stationsData[station_index]['x']
@@ -228,18 +255,18 @@ def getStationsList(orbitData, stationsData):
     return stations_list
 
 
-def residual(azi, ele, yaw, noise=0.005):
+def residual(azi, nad, yaw, noise=0.005):
     """
     This function computes a residual sample at a given epoch for a given station.
     :param azi: azimuth angle in radians
-    :param ele: elevation angle in radians
+    :param nad: nadir angle in radians
     :param yaw: nominal yaw angle in degrees
     :param noise: maximum value of added noise in meters
     :return: residual sample rk in meters
     """
     yaw = np.deg2rad(yaw)
-    rk = constants.PCO_x * np.cos(yaw) * np.sin(azi) * np.sin(ele + np.pi/2) + \
-         constants.PCO_x * np.sin(yaw) * np.cos(azi) * np.sin(ele + np.pi/2) + \
+    rk = constants.PCO_x * np.cos(yaw) * np.sin(azi) * np.sin(nad) + \
+         constants.PCO_x * np.sin(yaw) * np.cos(azi) * np.sin(nad) + \
          np.random.normal(0, noise, 1)[0]
     return rk
 
@@ -261,8 +288,13 @@ def simulatedResiduals(stationsList, orbitData, year=21, doy=58, prn=27, man="M1
 
     for i in range(0, len(orbitData['x'])):
         for station_index in stationsList.keys():
-            azi, ele = getAzimuthElevation(orbitData['x'][i], orbitData['y'][i], orbitData['z'][i], station_index, stationsList)
-            rk = residual(azi, ele, orbitData['yaw'][i])
+            r_sat = np.array([orbitData['x'][i], orbitData['y'][i], orbitData['z'][i]])
+            v_sat = np.array([orbitData['vx'][i], orbitData['vy'][i], orbitData['vz'][i]])
+
+            azi, nad = getAzimuthNadirSatellite(r_sat, v_sat, station_index, stationsList)
+            _, ele = getAzimuthElevationTopocentric(r_sat, station_index, stationsList)
+
+            rk = residual(azi, nad, orbitData['yaw'][i])
             mjd = orbitData['mjd'][i]
             line = "{} {} {} {} {} {}\n".format(station_index, prn, mjd, rk, np.rad2deg(azi), np.rad2deg(ele))
             file.write(line)

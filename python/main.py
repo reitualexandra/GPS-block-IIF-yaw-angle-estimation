@@ -25,19 +25,23 @@ if __name__ == '__main__':
     graphics.plotResiduals(residualDataSimulated, stationsData, year, doy, prn, man_simulated)
 
     # Estimate yaw from simulated residuals, no restraint
-    (epochs, yaw) = estimation.solveLSEModel1(residualDataSimulated)
+    (epochs, yaw) = estimation.solveLSEModel1(residualDataSimulated, orbitData, stationsData)
     graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man_simulated)
 
     # Estimate yaw from real residuals, no restraint
     graphics.plotResiduals(residualDataReal, stationsData, year, doy, prn, man)
-    (epochs, yaw) = estimation.solveLSEModel1(residualDataReal)
+    (epochs, yaw) = estimation.solveLSEModel1(residualDataReal, orbitData, stationsData)
     graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man)
 
-    # Estimate yaw from real residuals, with restraint
-    # residualDataReal = utils.trimResData(residualDataReal, orbitData, stationsData)
-    (epochs, yaw) = estimation.solveLSEModel1WithRestraint(residualDataReal)
-    graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man_restraint)
+
 
     # Estimate yaw from simulated residuals, with restraint
-    (epochs, yaw) = estimation.solveLSEModel1WithRestraint(residualDataSimulated)
+    (epochs, yaw) = estimation.solveLSEModel1WithRestraint(residualDataSimulated, orbitData, stationsData)
     graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man_simulated_restraint)
+
+    # Estimate yaw from real residuals, with restraint
+    graphics.plotResiduals(residualDataReal, stationsData, year, doy, prn, man_restraint)
+    (epochs, yaw) = estimation.solveLSEModel1WithRestraint(residualDataReal, orbitData, stationsData)
+    graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man)
+
+

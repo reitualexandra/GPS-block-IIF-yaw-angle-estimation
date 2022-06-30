@@ -1,16 +1,16 @@
 import os
 
 # path to directory where res and orb files are stored
-OUT = os.path.join("C:\\", "Users", "Win10", "Desktop", "Dizertatie", "residuals")
+OUT = os.path.join("..", "residuals")
 
 # path to generated figures directory
-FIGS = os.path.join("C:\\", "Users", "Win10", "Desktop", "Dizertatie", "figs")
+FIGS = os.path.join("..", "figs")
 
 # path to generated residual directory
-SIMS = os.path.join("C:\\", "Users", "Win10", "Desktop", "Dizertatie", "sim")
+SIMS = os.path.join("..", "sim")
 
 # path to GPSYAW.crd file - which contains list of stations used for residual generation
-STATION_COORDINATE_LIST = os.path.join("C:\\", "Users", "Win10", "Desktop", "Dizertatie", "residuals", "GPSYAW.crd")
+STATION_COORDINATE_LIST = os.path.join("..", "residuals", "GPSYAW.crd")
 
 # elevation mask for measurements and other stuff
 ELEVATION_MASK = 10
