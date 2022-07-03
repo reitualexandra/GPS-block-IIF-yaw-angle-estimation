@@ -12,8 +12,8 @@ def filterLowpass(residualSignal):
     :param residualSignal: residual signal to be filtered
     :return: signal after filtering
     """
-    Wn = 0.4
-    N = 5
+    Wn = 0.5
+    N = 8
     b, a = butter(N, Wn, 'low')
     filteredSignal = filtfilt(b, a, residualSignal)
     return filteredSignal
@@ -57,8 +57,20 @@ def computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch):
 def solveLSE(A, rk):
     AtA = A.transpose().dot(A)
     x = np.linalg.inv(AtA).dot(A.transpose()).dot(rk)
-    yaw = -np.rad2deg(np.arctan2(x[1], x[0]))
+    yaw = np.rad2deg(np.arctan2(x[1], x[0]))
     return yaw
+
+
+def solveLSE2(A, rk):
+    y1 = -solveLSE(A, rk)
+    A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
+                        2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
+    r2 = np.append(rk, [2 * (constants.PCO_x ** 2)], axis=0)
+    AtA = A2.transpose().dot(A2)
+    x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
+
+    y2 = np.rad2deg(np.arctan2(x[1], x[0]))
+    return y2
 
 
 def solveLSEModel1(residualData, orbitData, stationsData):
@@ -74,7 +86,15 @@ def solveLSEModel1(residualData, orbitData, stationsData):
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-        y = solveLSE(A, rk)
+        y = - solveLSE(A, rk)
+
+        yaw_nominal = orbitData['yaw'][orbitData['mjd'].index(epoch)]
+        try:
+            if np.sqrt((y-yaw_nominal)**2) > 320 or np.sqrt((y-yaw[-1])**2) > 180:
+                y = y - 360*np.sign(y)
+        except IndexError:
+            pass
+
         yaw.append(y) # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
         # yaw.append(np.rad2deg(np.arctan(x[1]/ x[0])))
     return (epochs, yaw)
@@ -93,12 +113,8 @@ def solveLSEModel2(residualData, orbitData, stationsData):
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-        y1 = solveLSE(A, rk)
-        # y1 = orbitData['yaw'][orbitData['mjd'].index(epoch)] # TODO see if using nominal yaw angle as starting point yields better results
-
-        AtA = A.transpose().dot(A)
-        x = np.linalg.inv(AtA).dot(A.transpose()).dot(rk)
-        y1 = np.rad2deg(np.arctan2(x[1], x[0]))
+        '''
+        y1 = -solveLSE(A, rk)
 
         A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
                             2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
@@ -107,7 +123,17 @@ def solveLSEModel2(residualData, orbitData, stationsData):
         x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
 
         y2 = np.rad2deg(np.arctan2(x[1], x[0]))
-        yaw.append(-y2) # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
+        '''
+
+        y2 = solveLSE2(A, rk)
+        yaw_nominal = orbitData['yaw'][orbitData['mjd'].index(epoch)]
+        try:
+            if np.sqrt((y2 - yaw_nominal) ** 2) > 320 or np.sqrt((y2-yaw[-1])**2) > 180:
+                y2 = y2 - 360 * np.sign(y2)
+        except IndexError:
+            pass
+
+        yaw.append(y2) # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
 
     return (epochs, yaw)
 
@@ -120,27 +146,41 @@ def solveLSEModel3(residualData, orbitData, stationsData):
     :param stationsData: dictionary containing stations data (index, name and position)
     :return: estimated yaw angles in degrees and their corresponding epochs
     """
-    epochs = []
-    for station_index in residualData.keys():
-        epochs = epochs + list(set(residualData[station_index]['mjd']) - set(epochs))
-    epochs.sort()
+    epochs = utils.getEpochsArray(residualData)
     yaw = []
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-        y1 = solveLSE(A, rk)
-        # y1 = orbitData['yaw'][orbitData['mjd'].index(epoch)] # TODO see if using nominal yaw angle as starting point yields better results
+        y1 = - solveLSE(A, rk)
+        yaw_nominal = orbitData['yaw'][orbitData['mjd'].index(epoch)]
+        try:
+            if np.sqrt((y1 - yaw_nominal) ** 2) > 180:
+                y1 = y1 - 360 * np.sign(y1)
+        except IndexError:
+            pass
 
-        A2 = np.append(A, [[2 * constants.PCO_x * np.cos(y1), 2 * constants.PCO_x * np.sin(y1)]], axis=0)
+        #A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
+        #y1 = solveLSE(A, rk)
 
-        b = np.ones((len(rk), 1))
-        b = np.concatenate((b, np.zeros((1, 1))), axis=0)
+        #y1 = orbitData['yaw'][orbitData['mjd'].index(epoch)] # TODO see if using nominal yaw angle as starting point yields better results
+        #y1 = np.deg2rad(y1)
 
-        A2 = np.concatenate((A2, b), axis=1)
-        r2 = np.append(rk, [2*((constants.PCO_x)**2)], axis=0)
-        y2 = solveLSE(A2, r2)
+        for i in range(0, 1):
+            A2 = np.append(A, [[2 * constants.PCO_x * np.cos(y1), 2 * constants.PCO_x * np.sin(y1)]], axis=0)
 
-        yaw.append(y2) # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
+            b = np.ones((len(rk), 1))
+            b = np.concatenate((b, np.zeros((1, 1))), axis=0)
+
+            A2 = np.concatenate((A2, b), axis=1)
+            r2 = np.append(rk, [2*((constants.PCO_x)**2)], axis=0)
+
+            AtA = A2.transpose().dot(A2)
+            x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
+
+            y1 = np.rad2deg(np.arctan2(x[1], x[0]))
+
+
+        yaw.append(y1) # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
 
     return (epochs, yaw)
 

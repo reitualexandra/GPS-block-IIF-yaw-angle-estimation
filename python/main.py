@@ -6,8 +6,8 @@ import estimation
 if __name__ == '__main__':
 
     year = 21
-    prn = 27######
-    doy = 59
+    prn = 27
+    doy = 58
     man = "M1"
     man_simulated = "M1_sim" # simulated .res files contain maneuvers with an S at the end to differentiate from real residuals
 
@@ -16,7 +16,7 @@ if __name__ == '__main__':
     orbitData = utils.getOrbData(year, doy, prn, man)
     stationsList = utils.getStationsList(orbitData, stationsData)
     residualDataReal = utils.getResData(year, doy, prn, man)
-    # residualDataReal = estimation.filterResiduals(residualDataReal)
+    residualDataReal = estimation.filterResiduals(residualDataReal)
     residualDataReal = utils.cleanResData(residualDataReal)
 
 
@@ -51,5 +51,5 @@ if __name__ == '__main__':
     (epochs, yaw) = estimation.solveLSEModel2(residualDataReal, orbitData, stationsData)
     graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_real_model2")
 
-    #(epochs, yaw) = estimation.solveLSEModel3(residualDataReal, orbitData, stationsData)
-    #graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_real_model3")
+    (epochs, yaw) = estimation.solveLSEModel3(residualDataReal, orbitData, stationsData)
+    graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_real_model3")
