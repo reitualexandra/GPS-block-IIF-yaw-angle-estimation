@@ -7,7 +7,7 @@ if __name__ == '__main__':
 
     year = 21
     prn = 27
-    doy = 58
+    doy = 59
     man = "M1"
     man_simulated = "M1_sim" # simulated .res files contain maneuvers with an S at the end to differentiate from real residuals
 

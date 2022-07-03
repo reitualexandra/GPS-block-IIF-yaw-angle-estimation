@@ -5,14 +5,17 @@ from scipy.linalg import block_diag
 from scipy.signal import butter, filtfilt
 
 
-def filterLowpass(residualSignal):
+
+
+
+
+def filterLowpass(residualSignal, Wn=0.5):
     """
     This function gets an input signal and filters it using a lowpass Butterworth filter.
     TODO: try multiple filtering types
     :param residualSignal: residual signal to be filtered
     :return: signal after filtering
     """
-    Wn = 0.5
     N = 8
     b, a = butter(N, Wn, 'low')
     filteredSignal = filtfilt(b, a, residualSignal)
@@ -90,7 +93,7 @@ def solveLSEModel1(residualData, orbitData, stationsData):
 
         yaw_nominal = orbitData['yaw'][orbitData['mjd'].index(epoch)]
         try:
-            if np.sqrt((y-yaw_nominal)**2) > 320 or np.sqrt((y-yaw[-1])**2) > 180:
+            if np.sqrt((y-yaw_nominal)**2) > 250 or np.sqrt((y-yaw[-1])**2) > 250:
                 y = y - 360*np.sign(y)
         except IndexError:
             pass
@@ -128,7 +131,7 @@ def solveLSEModel2(residualData, orbitData, stationsData):
         y2 = solveLSE2(A, rk)
         yaw_nominal = orbitData['yaw'][orbitData['mjd'].index(epoch)]
         try:
-            if np.sqrt((y2 - yaw_nominal) ** 2) > 320 or np.sqrt((y2-yaw[-1])**2) > 180:
+            if np.sqrt((y2 - yaw_nominal) ** 2) > 250 or np.sqrt((y2 - yaw[-1]) ** 2) > 250:
                 y2 = y2 - 360 * np.sign(y2)
         except IndexError:
             pass
@@ -148,6 +151,7 @@ def solveLSEModel3(residualData, orbitData, stationsData):
     """
     epochs = utils.getEpochsArray(residualData)
     yaw = []
+    yaw_init = solveLSEModel2(residualData, orbitData, stationsData)
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
