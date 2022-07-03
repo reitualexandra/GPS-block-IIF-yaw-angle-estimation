@@ -48,10 +48,18 @@ def getOrbData(year=21, doy=58, prn=27, man="M1"):
         orbitData['usun'].append(float(items[11]))
         orbitData['yaw'].append(float(items[12]))
         orbitData['shadow_flag'].append(int(items[13]))
+
     return orbitData
 
 
 def getSatellitePositionVelocity(orbitData, epoch):
+    """
+    This function takes an orbitData dictionary and an epoch and selects the position and velocity vectors of the
+    satellite at that certain epoch
+    :param orbitData: dictionary containing data read from .orb file
+    :param epoch: epoch that we want to get position and velocity for
+    :return: tuple containing position and velocity vectors as read from .orb file
+    """
     for i in range(0, len(orbitData['mjd'])):
         if orbitData['mjd'][i] == epoch:
             r_sat = np.array([orbitData['x'][i], orbitData['y'][i], orbitData['z'][i]])
@@ -86,14 +94,46 @@ def getResData(year=21, doy=58, prn=27, man="M1"):
             residualData[station_index]['azi'] = []
             residualData[station_index]['ele'] = []
 
+
         residualData[station_index]['mjd'].append(float(items[2]))
         residualData[station_index]['rk'].append(float(items[3]))
         residualData[station_index]['azi'].append(float(items[4]))
         residualData[station_index]['ele'].append(float(items[5]))
+
+
+    return residualData
+
+
+def cleanResData(residualData):
+    """
+    This function checks that the residual signal from a certain station does not have strange variations
+    (as those that appear when many cycle slips are present). If a residual signal is detected which presents cycle slips,
+    or has a standard deviation above a certain threshold, then the signal from that station is removed.
+    :param residualData: dictionary containing data from .res file
+    :return: dictionary containing residual data with 'noisy' stations removed
+    """
+    stations = list(residualData.keys())
+    for st in stations:
+        residuals = list(residualData[st]['rk'])
+        if np.std(residuals) > constants.CS_THRESHOLD:
+            residualData.pop(st, None)
+        for i in range(1, len(residuals)):
+            if np.sqrt((residuals[i] - residuals[i-1])**2) > constants.CS_THRESHOLD:
+                residualData.pop(st, None)
+
     return residualData
 
 
 def trimResData(residualData, orbitData, stationsData):
+    """
+    This function selects only those stations that "see" a satellite for the whole duration of a maneuver.
+    The residual data dictionary is trimmed in that the data from stations which only see the satellite for
+    a prt of the maneuver duration are removed.
+    :param residualData: dictionary containing data from .res file
+    :param orbitData: dictionary containing data from .orb file
+    :param stationsData: dictionary containing stations info
+    :return: trimmed residual data dictionary
+    """
     stationsList = getStationsList(orbitData, stationsData)
 
     trimmedResData = {}
@@ -106,6 +146,11 @@ def trimResData(residualData, orbitData, stationsData):
 
 
 def getEpochsArray(residualData):
+    """
+    This function gets all unique epochs contained in a residual data dictionary.
+    :param residualData: dictionary cotaining data from .res file
+    :return: epochs list
+    """
     epochs = []
     for station_index in residualData.keys():
         epochs = epochs + list(set(residualData[station_index]['mjd']) - set(epochs))
@@ -114,6 +159,15 @@ def getEpochsArray(residualData):
 
 
 def trimResDataWindow(residualData, startEpoch, endEpoch):
+    """
+    This function selects only those residual samples which correspond to the time interval between startEpoch and
+    endEpoch. The data is rearranged into a new dictionary which is the return value.
+    All selected stations contain data over all epochs so there are no gaps in data over any epochs.
+    :param residualData: data read from .res file
+    :param startEpoch: initial epoch of the considered time interval
+    :param endEpoch: final epoch of the considered time interval
+    :return: residual data dictionary trimmed between the two epochs
+    """
     epochs = getEpochsArray(residualData)
     epochsList = epochs[epochs.index(startEpoch) : epochs.index(endEpoch)]
     trimmedResData = {}
@@ -147,6 +201,15 @@ def getLonLat(x, y, z):
 
 
 def getAzimuthNadirSatellite(r_sat, v_sat, stationIndex, stationsData):
+    """
+    This function computed the azimuth and nadir angles under which a satellite is observed by a certain station.
+    The angles are in satellite fixed frame.
+    :param r_sat: satellite position vector
+    :param v_sat: satellite velocity vector
+    :param stationIndex: index of station considered
+    :param stationsData: dictionary containing data for all stations (such as index, name and position)
+    :return:
+    """
     x_station = stationsData[stationIndex]['x']
     y_station = stationsData[stationIndex]['y']
     z_station = stationsData[stationIndex]['z']
@@ -190,7 +253,7 @@ def getAzimuthElevationTopocentric(r_sat, stationIndex, stationsData):
     r4 = Q1.dot(R2).dot(R3).dot(r_trans)
 
     a = np.arctan2(r4[1], r4[0]) + np.pi*2
-    if np.degrees(a) >= 360:
+    if np.rad2deg(a) >= 360:
         a = np.arctan2(r4[1], r4[0])
 
     e = np.arctan2(r4[2], np.sqrt(r4[0]**2 + r4[1]**2))
@@ -255,7 +318,7 @@ def getStationsList(orbitData, stationsData):
     return stations_list
 
 
-def residual(azi, nad, yaw, noise=0.005):
+def residual(azi, nad, yaw, noise=0.01):
     """
     This function computes a residual sample at a given epoch for a given station.
     :param azi: azimuth angle in radians
@@ -265,8 +328,9 @@ def residual(azi, nad, yaw, noise=0.005):
     :return: residual sample rk in meters
     """
     yaw = np.deg2rad(yaw)
-    rk = constants.PCO_x * np.cos(yaw) * np.sin(azi) * np.sin(nad) + \
-         constants.PCO_x * np.sin(yaw) * np.cos(azi) * np.sin(nad) + \
+    # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
+    rk = constants.PCO_x * np.cos(-yaw) * np.sin(azi) * np.sin(nad) + \
+         constants.PCO_x * np.sin(-yaw) * np.cos(azi) * np.sin(nad) + \
          np.random.normal(0, noise, 1)[0]
     return rk
 
