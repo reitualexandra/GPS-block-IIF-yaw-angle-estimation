@@ -132,17 +132,6 @@ def solveLSEModel2(residualData, orbitData, stationsData):
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-        '''
-        y1 = -solveLSE(A, rk)
-
-        A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
-                            2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
-        r2 = np.append(rk, [2 * (constants.PCO_x ** 2)], axis=0)
-        AtA = A2.transpose().dot(A2)
-        x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
-
-        y2 = np.rad2deg(np.arctan2(x[1], x[0]))
-        '''
 
         y2 = solveLSE2(A, rk)
         yaw_nominal = orbitData['yaw'][orbitData['mjd'].index(epoch)]
@@ -152,14 +141,15 @@ def solveLSEModel2(residualData, orbitData, stationsData):
         except IndexError:
             pass
 
-        yaw.append(y2) # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
+        yaw.append(y2)
 
     return (epochs, yaw)
 
 
 def solveLSEModel3(residualData, orbitData, stationsData):
     """
-    This function implements a simple LSE model on residual data to estimate yaw angles, while using a restraint condition.
+    This function implements a simple LSE model on residual data to estimate yaw angles, while using a restraint condition
+    and also estimating satellite clock corrections. TODO add satellite clocks to output and plots.
     :param residualData: dictionary containing data read from .res file
     :param orbitData: dictionary containing data read from .orb file, used to compute azimuth and nadir angles for the design matrix
     :param stationsData: dictionary containing stations data (index, name and position)
@@ -178,7 +168,7 @@ def solveLSEModel3(residualData, orbitData, stationsData):
         except IndexError:
             pass
 
-        yaw.append(y2)  # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
+        yaw.append(y2)
 
     return (epochs, yaw)
 
@@ -197,7 +187,8 @@ def computeGrandDesignMatrixWindow(residualData, orbitData, stationsData, startE
     # Get residual data contained between startEpoch and endEpoch into a dictionary format
     trimmedResData = utils.trimResDataWindow(residualData, startEpoch, endEpoch)
     # Get initial epochs and yaw values between startEpoch and endEpoch by using the trimmed residual data
-    (epochs_init, yaw_init) = solveLSEModel2(trimmedResData, orbitData, stationsData)
+    (epochs_init, yaw_init) = solveLSEModel3(trimmedResData, orbitData, stationsData)
+    #yaw_init = filterLowpass(yaw_init, Wn=0.1, N=4)
 
     # Initialize residual vector which will also contain pseudo observations for restraints
     Rk = np.empty((0, 0), float)
@@ -259,43 +250,45 @@ def computeGrandDesignMatrixWindow(residualData, orbitData, stationsData, startE
 
 
 
-def solveLSEModel4WithRestraint(residualData, orbitData, stationsData, startEpoch, endEpoch):
+def solveLSEModel4(A, rk):
     # trimmedResData = utils.trimResDataWindow(residualData, startEpoch, endEpoch)
     # (epochs, _) = solveLSEModel1WithRestraint(trimmedResData, orbitData, stationsData)
-
-    (A, rk, epochs) = computeGrandDesignMatrixWindow(residualData, orbitData, stationsData, startEpoch, endEpoch)
-
+    # TODO see why on Earth the fourth estimator is not convergent ?!!! For the third the problem was on LSE solving - implementing a separate function fixed it
     AtA = A.transpose().dot(A)
     X = np.linalg.inv(AtA).dot(A.transpose()).dot(rk)
     yaw = []
 
-    for epoch in epochs:
-        i = epochs.index(epoch)
-        x = X[2*i: (2*i)+2]
-        y = np.rad2deg(np.arctan2(x[1], x[0]))
-        yaw.append(y)
+    AtA = A.transpose().dot(A)
+    x = np.linalg.inv(AtA).dot(A.transpose()).dot(rk)
+    yaw = np.rad2deg(np.arctan2(x[1], x[0]))
 
-    return (epochs, yaw)
+    #for epoch in epochs:
+    #    i = epochs.index(epoch)
+    #    x = X[2*i: (2*i)+2]
+    #    y = np.rad2deg(np.arctan2(x[1], x[0]))
+    #    yaw.append(y)
+
+    return yaw
 
 
 
-def solveLSEModel4WithRestraintWindow(residualData, orbitData, stationsData, Ne=10):
+def solveLSEModel4Window(residualData, orbitData, stationsData, Ne=10):
     epochs = utils.getEpochsArray(residualData)
+
     epochs_final = []
     yaw = []
-    for epoch in epochs[1:-Ne-1]:
+    for epoch in epochs[1:-Ne - 1]:
         index = epochs.index(epoch)
         startEpoch = epoch
 
-        endEpoch = epochs[index+Ne]
+        endEpoch = epochs[index + Ne]
         try:
-            e, y = solveLSEModel4WithRestraint(residualData, orbitData, stationsData, startEpoch, endEpoch)
+            (A, rk, e) = computeGrandDesignMatrixWindow(residualData, orbitData, stationsData,
+                                                             startEpoch, endEpoch)
+            y = solveLSEModel4(A, rk)
 
-            epochs_final.append(e[5])
-            yaw.append(y[5])
-
-            print(epochs_final)
-            print(yaw)
+            epochs_final.append(startEpoch)
+            yaw.append(y)
         except:
             pass
 
