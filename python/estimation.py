@@ -9,14 +9,13 @@ from scipy.signal import butter, filtfilt
 
 
 
-def filterLowpass(residualSignal, Wn=0.5):
+def filterLowpass(residualSignal, Wn=0.5, N=8):
     """
     This function gets an input signal and filters it using a lowpass Butterworth filter.
     TODO: try multiple filtering types
     :param residualSignal: residual signal to be filtered
     :return: signal after filtering
     """
-    N = 8
     b, a = butter(N, Wn, 'low')
     filteredSignal = filtfilt(b, a, residualSignal)
     return filteredSignal
@@ -68,6 +67,23 @@ def solveLSE2(A, rk):
     y1 = -solveLSE(A, rk)
     A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
                         2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
+    r2 = np.append(rk, [2 * (constants.PCO_x ** 2)], axis=0)
+    AtA = A2.transpose().dot(A2)
+    x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
+
+    y2 = np.rad2deg(np.arctan2(x[1], x[0]))
+    return y2
+
+
+def solveLSE3(A, rk):
+    y1 = -solveLSE(A, rk)
+    A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
+                        2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
+    b = np.ones((len(rk), 1))
+    b = np.concatenate((b, np.zeros((1, 1))), axis=0)
+
+    A2 = np.concatenate((A2, b), axis=1)
+
     r2 = np.append(rk, [2 * (constants.PCO_x ** 2)], axis=0)
     AtA = A2.transpose().dot(A2)
     x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
@@ -151,40 +167,18 @@ def solveLSEModel3(residualData, orbitData, stationsData):
     """
     epochs = utils.getEpochsArray(residualData)
     yaw = []
-    yaw_init = solveLSEModel2(residualData, orbitData, stationsData)
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-        y1 = - solveLSE(A, rk)
+        y2 = solveLSE3(A, rk)
         yaw_nominal = orbitData['yaw'][orbitData['mjd'].index(epoch)]
         try:
-            if np.sqrt((y1 - yaw_nominal) ** 2) > 180:
-                y1 = y1 - 360 * np.sign(y1)
+            if np.sqrt((y2 - yaw_nominal) ** 2) > 250 or np.sqrt((y2 - yaw[-1]) ** 2) > 250:
+                y2 = y2 - 360 * np.sign(y2)
         except IndexError:
             pass
 
-        #A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-        #y1 = solveLSE(A, rk)
-
-        #y1 = orbitData['yaw'][orbitData['mjd'].index(epoch)] # TODO see if using nominal yaw angle as starting point yields better results
-        #y1 = np.deg2rad(y1)
-
-        for i in range(0, 1):
-            A2 = np.append(A, [[2 * constants.PCO_x * np.cos(y1), 2 * constants.PCO_x * np.sin(y1)]], axis=0)
-
-            b = np.ones((len(rk), 1))
-            b = np.concatenate((b, np.zeros((1, 1))), axis=0)
-
-            A2 = np.concatenate((A2, b), axis=1)
-            r2 = np.append(rk, [2*((constants.PCO_x)**2)], axis=0)
-
-            AtA = A2.transpose().dot(A2)
-            x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
-
-            y1 = np.rad2deg(np.arctan2(x[1], x[0]))
-
-
-        yaw.append(y1) # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
+        yaw.append(y2)  # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
 
     return (epochs, yaw)
 

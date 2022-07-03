@@ -16,7 +16,7 @@ STATION_COORDINATE_LIST = os.path.join("..", "data", "GPSYAW.crd")
 ELEVATION_MASK = 10
 EARTH_RADIUS = 6371 * 1000
 # residual threahold to consider a cycle slip, in meters - causes a sample to be removed
-CS_THRESHOLD = 0.08
+CS_THRESHOLD = 0.1
 
 # GPS block IIF PCOs - in meters
 PCO_x = 0.393

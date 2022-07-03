@@ -16,7 +16,7 @@ if __name__ == '__main__':
     orbitData = utils.getOrbData(year, doy, prn, man)
     stationsList = utils.getStationsList(orbitData, stationsData)
     residualDataReal = utils.getResData(year, doy, prn, man)
-    residualDataReal = estimation.filterResiduals(residualDataReal)
+    #residualDataReal = estimation.filterResiduals(residualDataReal)
     residualDataReal = utils.cleanResData(residualDataReal)
 
 
