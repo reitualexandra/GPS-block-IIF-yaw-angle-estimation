@@ -7,8 +7,8 @@ if __name__ == '__main__':
 
     year = 21
     prn = 27
-    doy = 59
-    man = "N1"
+    doy = 58
+    man = "M1"
     man_simulated = "{}_sim".format(man) # simulated .res files contain maneuvers with an S at the end to differentiate from real residuals
 
     # Get stations data, orbit data, stations list and residuals for considered maneuver, doy, and prn
