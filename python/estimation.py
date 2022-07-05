@@ -162,21 +162,28 @@ def solveLSEModel3(residualData, orbitData, stationsData):
     :return: estimated yaw angles in degrees and their corresponding epochs
     """
     epochs = utils.getEpochsArray(residualData)
+    epochs_final = []
     yaw = []
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-        y2 = solveLSE3(A, rk)
-
         try:
-            if np.sqrt((y2 - yaw[-1]) ** 2) > 250:
-                y2 = y2 - 360 * np.sign(y2)
-        except IndexError:
-            pass
+            y2 = solveLSE3(A, rk)
 
-        yaw.append(y2)
+            try:
+                if np.sqrt((y2 - yaw[-1]) ** 2) > 250:
+                    y2 = y2 - 360 * np.sign(y2)
+            except IndexError:
+                pass
 
-    return (epochs, yaw)
+            yaw.append(y2)
+            epochs_final.append(epoch)
+        except np.linalg.LinAlgError:
+            print("Singular matrix at epoch {}.".format(epoch))
+
+
+
+    return (epochs_final, yaw)
 
 
 def computeBlock1DesignMatrixWindow(residualData, orbitData, stationsData, startEpoch, endEpoch):
@@ -288,19 +295,10 @@ def final4(residualData, orbitData, stationsData, Ne=5):
             endEpoch = epochs[epochs.index(epoch)+Ne]
             e, y = solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
 
-            yaw.append(y)
-            epoch_final.append(e)
+            yaw = yaw + y
+            epoch_final = epoch_final + e
         except (np.linalg.LinAlgError, IndexError):
             print("Singular A matrix for epoch {}".format(epoch))
-
-    yaw = yaw[0]
-    epoch_final = epoch_final[0]
-    #for y in yaw:
-    #    try:
-    #        if np.sqrt((y - yaw[yaw.index(y)-1]) ** 2) > 250:
-    #            yaw[yaw.index(y)] = y - 360 * np.sign(y)
-    #    except IndexError:
-    #        pass
 
     return epoch_final, yaw
 
