@@ -56,12 +56,9 @@ def computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch):
     return A, rk
 
 
-def computeBlock2DesignMatrix(residualData, orbitData, stationsData, epoch): # TODO comment code for God's sake
-    A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-    y1 = solveLSE3(A, rk)
-
-    A2 = np.array([[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
-                    2 * constants.PCO_x * np.sin(np.deg2rad(y1))]])
+def computeBlock2DesignMatrix(yaw): # TODO comment code for God's sake
+    A2 = np.array([[2 * constants.PCO_x * np.cos(np.deg2rad(yaw)),
+                    2 * constants.PCO_x * np.sin(np.deg2rad(yaw))]])
     r2 = np.array([2 * (constants.PCO_x ** 2)])
     return A2, r2
 
@@ -198,14 +195,19 @@ def computeBlock1DesignMatrixWindow(residualData, orbitData, stationsData, start
     return (grandDesignMatrixBlock1, Rk)
 
 
-def computeBlock2DesignMatrixWindow(residualData, orbitData, stationsData, startEpoch, endEpoch):
+def computeBlock2DesignMatrixWindow(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw):
     trimmedResData = utils.trimResDataWindow(residualData, startEpoch, endEpoch)
     epochs = utils.getEpochsArray(trimmedResData)
+
+    #epochs, _ = solveLSEModel3(trimmedResData, orbitData, stationsData)
+    yaw_init = yaw[orbitData['mjd'].index(startEpoch): orbitData['mjd'].index(endEpoch)]
+    #yaw_init = filterLowpass(yaw_init, Wn=0.1, N=4)
 
     grandDesignMatrixBlock2 = np.empty((0, 0), float)
     Rk = np.empty((0, 0), float)
     for epoch in epochs:
-        A, rk = computeBlock2DesignMatrix(trimmedResData, orbitData, stationsData, epoch)
+
+        A, rk = computeBlock2DesignMatrix(yaw_init[epochs.index(epoch)])
         grandDesignMatrixBlock2 = block_diag(grandDesignMatrixBlock2, A)
         try:
             Rk = np.concatenate((Rk, np.array(rk)), axis=0)
@@ -240,9 +242,9 @@ def computeBlock4DesignMatrixWindow(residualData, startEpoch, endEpoch):
     return grandDesignMatrixBlock4
 
 
-def computeGrandDesignMatrix(residualData, orbitData, stationsData, startEpoch, endEpoch):
+def computeGrandDesignMatrix(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init):
     A1, rk = computeBlock1DesignMatrixWindow(residualData, orbitData, stationsData, startEpoch, endEpoch)
-    A2, rk2 = computeBlock2DesignMatrixWindow(residualData, orbitData, stationsData, startEpoch, endEpoch)
+    A2, rk2 = computeBlock2DesignMatrixWindow(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
     A3 = computeBlock3DesignMatrixWindow(residualData, startEpoch, endEpoch)
     A4 = computeBlock4DesignMatrixWindow(residualData, startEpoch, endEpoch)
 
@@ -254,8 +256,8 @@ def computeGrandDesignMatrix(residualData, orbitData, stationsData, startEpoch, 
     return grandDesignMatrix, Rk
 
 
-def solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch):
-    A, rk = computeGrandDesignMatrix(residualData, orbitData, stationsData, startEpoch, endEpoch)
+def solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init):
+    A, rk = computeGrandDesignMatrix(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
 
     trimmedResData = utils.trimResDataWindow(residualData, startEpoch, endEpoch)
     epochs = utils.getEpochsArray(trimmedResData)
@@ -274,20 +276,31 @@ def solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch):
 
 
 def final4(residualData, orbitData, stationsData, Ne=5):
-    epochs = utils.getEpochsArray(residualData)
+    # epochs = utils.getEpochsArray(residualData)
+    epochs, yaw_init = solveLSEModel3(residualData, orbitData, stationsData)
+    yaw_init = filterLowpass(yaw_init, Wn=0.1, N=4)
 
     yaw = []
     epoch_final = []
-    for epoch in epochs[:-Ne:Ne]:
+    for epoch in epochs[::Ne]:
         try:
             startEpoch = epoch
             endEpoch = epochs[epochs.index(epoch)+Ne]
-            e, y = solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch)
+            e, y = solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
 
             yaw.append(y)
             epoch_final.append(e)
-        except np.linalg.LinAlgError:
+        except (np.linalg.LinAlgError, IndexError):
             print("Singular A matrix for epoch {}".format(epoch))
+
+    yaw = yaw[0]
+    epoch_final = epoch_final[0]
+    #for y in yaw:
+    #    try:
+    #        if np.sqrt((y - yaw[yaw.index(y)-1]) ** 2) > 250:
+    #            yaw[yaw.index(y)] = y - 360 * np.sign(y)
+    #    except IndexError:
+    #        pass
 
     return epoch_final, yaw
 

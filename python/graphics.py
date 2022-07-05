@@ -85,7 +85,7 @@ def plotEstimatedYaw(epochs, yaw, orbitData, year=21, doy=58, prn=27, man="M1", 
     plt = plotNominalYaw(orbitData, year, doy, prn, man, savefig=False)
     plt.scatter(epochs, yaw, marker='.', color='r', zorder=1)
 
-    #y_filt = estimation.filterLowpass(yaw, Wn=0.1, N=4)
-    #plt.plot(epochs, y_filt, color='mistyrose')
+    y_filt = estimation.filterLowpass(yaw, Wn=0.1, N=4)
+    plt.plot(epochs, y_filt, color='tomato')
 
     plt.savefig(figPath)

@@ -54,10 +54,10 @@ if __name__ == '__main__':
     (epochs, yaw) = estimation.solveLSEModel3(residualDataReal, orbitData, stationsData)
     graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_real_model3")
     '''
-    #(epochs, yaw) = estimation.solveLSEModel4Window(residualDataReal, orbitData, stationsData)
-    #graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_real_model4")
+    (epochs, yaw) = estimation.solveLSEModel3(residualDataReal, orbitData, stationsData)
+    graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_real_model3")
 
-    (epochs, yaw) = estimation.final4(residualDataReal, orbitData, stationsData, Ne=100)
+    (epochs, yaw) = estimation.final4(residualDataReal, orbitData, stationsData, Ne=len(epochs)-1)
     graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_real_model4")
 
 
