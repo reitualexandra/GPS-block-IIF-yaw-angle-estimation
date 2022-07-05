@@ -1,4 +1,5 @@
 import constants
+import estimation
 import matplotlib.pyplot as plt
 import os
 
@@ -22,7 +23,9 @@ def plotResiduals(residualData, stationsData, year=21, doy=58, prn=27, man="M1")
         tk = residualData[station_index]['mjd']
         rk = residualData[station_index]['rk']
         st_name = stationsData[station_index]['name']
+
         plt.plot(tk, rk, label=st_name)
+
     plt.legend(loc="upper left")
     plt.grid()
     plt.xlabel("Time (MJD)")
@@ -31,13 +34,13 @@ def plotResiduals(residualData, stationsData, year=21, doy=58, prn=27, man="M1")
     plt.savefig(figPath)
 
 
-def plotNominalYaw(orbitData, year=21, prn=27, doy=58, man="M1", savefig=True):
+def plotNominalYaw(orbitData, year=21, doy=58, prn=27, man="M1", savefig=True):
     """
     This function plots the nominal yaw angle read from .orb files, alongside the shadow marking.
     :param orbitData: dictionary containing data read from .orb file, as created by utils.getOrbData()
     :param year: year - used to construct .res figure name
-    :param prn: satellite prn code - used to construct figure name
     :param doy: day of year - used to construct figure name
+    :param prn: satellite prn code - used to construct figure name
     :param man: maneuver type - used to construct figure name
     :return: writes .jpg figure, with no return value
     """
@@ -65,9 +68,24 @@ def plotNominalYaw(orbitData, year=21, prn=27, doy=58, man="M1", savefig=True):
         return plt
 
 
-def plotEstimatedYaw(epochs, yaw, orbitData, year=21, doy=58, prn=27, man="M1"):
-    figName = str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + "_yawest.jpg"
+def plotEstimatedYaw(epochs, yaw, orbitData, year=21, doy=58, prn=27, man="M1", extension=""):
+    """
+    This function plots the estimated yaw values over the nominal ones read from .orb data file.
+    :param epochs: epochs over which yaw was estimated
+    :param yaw: estimated yaw values in degrees
+    :param orbitData: dictionary containing data read from .orb file, as created by utils.getOrbData()
+    :param year: year - used to construct .res figure name
+    :param doy: day of year - used to construct figure name
+    :param prn: satellite prn code - used to construct figure name
+    :param man: maneuver type - used to construct figure name
+    :return:
+    """
+    figName = str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + "_yawest{}.jpg".format(extension)
     figPath = os.path.join(constants.FIGS, figName)
-    plt = plotNominalYaw(orbitData, year, prn, doy, man, savefig=False)
+    plt = plotNominalYaw(orbitData, year, doy, prn, man, savefig=False)
     plt.scatter(epochs, yaw, marker='.', color='r', zorder=1)
+
+    #y_filt = estimation.filterLowpass(yaw, Wn=0.1, N=4)
+    #plt.plot(epochs, y_filt, color='mistyrose')
+
     plt.savefig(figPath)
