@@ -128,7 +128,7 @@ def trimResData(residualData, orbitData, stationsData):
     """
     This function selects only those stations that "see" a satellite for the whole duration of a maneuver.
     The residual data dictionary is trimmed in that the data from stations which only see the satellite for
-    a prt of the maneuver duration are removed.
+    a part of the maneuver duration are removed.
     :param residualData: dictionary containing data from .res file
     :param orbitData: dictionary containing data from .orb file
     :param stationsData: dictionary containing stations info
@@ -148,7 +148,7 @@ def trimResData(residualData, orbitData, stationsData):
 def getEpochsArray(residualData):
     """
     This function gets all unique epochs contained in a residual data dictionary.
-    :param residualData: dictionary cotaining data from .res file
+    :param residualData: dictionary containing data from .res file
     :return: epochs list
     """
     epochs = []
