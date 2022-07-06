@@ -360,8 +360,6 @@ def solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_i
     yaw_error = []
 
     errors = errorbars.computeFormalError(A, rk, x)
-    print(errors)
-
     for i in range(0, Ne*2, 2):
         x0 = x[i]
         y0 = x[i+1]
@@ -384,7 +382,6 @@ def solveLSEModel4(residualData, orbitData, stationsData, Ne=5):
     epoch_final = []
     errors = []
     for epoch in epochs[::Ne]:
-        print("RUNNING")
         try:
             startEpoch = epoch
             endEpoch = epochs[epochs.index(epoch)+Ne]
