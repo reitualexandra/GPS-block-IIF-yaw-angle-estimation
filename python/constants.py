@@ -1,5 +1,6 @@
 import os
 
+
 # path to directory where res and orb files are stored
 OUT = os.path.join("..", "data")
 

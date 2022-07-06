@@ -1,4 +1,5 @@
 import constants
+import errorbars
 import utils
 import numpy as np
 from scipy.linalg import block_diag
@@ -85,7 +86,11 @@ def solveLSE(A, rk):
     AtA = A.transpose().dot(A)
     x = np.linalg.inv(AtA).dot(A.transpose()).dot(rk)
     yaw = np.rad2deg(np.arctan2(x[1], x[0]))
-    return yaw
+
+    errors = errorbars.computeFormalError(A, rk, x)
+    yaw_error = np.rad2deg(np.arctan2(errors[1], errors[0]))
+
+    return yaw, yaw_error
 
 
 def solveLSE2(A, rk):
@@ -96,15 +101,18 @@ def solveLSE2(A, rk):
     :param rk: measurements vector (residual)
     :return: yaw estimated from LSE solution
     """
-    y1 = solveLSE(A, rk)
+    y1, _ = solveLSE(A, rk)
     A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
                         2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
     r2 = np.append(rk, [2 * (constants.PCO_x ** 2)], axis=0)
     AtA = A2.transpose().dot(A2)
     x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
 
+    errors = errorbars.computeFormalError(A2, r2, x)
+    yaw_error = np.rad2deg(np.arctan2(errors[1], errors[0]))
+
     y2 = np.rad2deg(np.arctan2(x[1], x[0]))
-    return y2
+    return y2, yaw_error
 
 
 def solveLSE3(A, rk):
@@ -115,7 +123,7 @@ def solveLSE3(A, rk):
     :param rk: measurements vector (residual)
     :return: yaw estimated from LSE solution
     """
-    y1 = solveLSE(A, rk)
+    y1, _ = solveLSE(A, rk)
     A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
                         2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
     b = np.ones((len(rk), 1))
@@ -127,8 +135,11 @@ def solveLSE3(A, rk):
     AtA = A2.transpose().dot(A2)
     x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
 
+    errors = errorbars.computeFormalError(A2, r2, x)
+    yaw_error = np.rad2deg(np.arctan2(errors[1], errors[0]))
+
     y2 = np.rad2deg(np.arctan2(x[1], x[0]))
-    return y2
+    return y2, yaw_error
 
 
 def solveLSEModel1(residualData, orbitData, stationsData):
@@ -141,10 +152,11 @@ def solveLSEModel1(residualData, orbitData, stationsData):
     """
     epochs = utils.getEpochsArray(residualData)
     yaw = []
+    errors = []
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-        y = solveLSE(A, rk)
+        y, error = solveLSE(A, rk)
 
         try:
             if np.sqrt((y-yaw[-1])**2) > 250:
@@ -153,8 +165,8 @@ def solveLSEModel1(residualData, orbitData, stationsData):
             pass
 
         yaw.append(y) # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
-        # yaw.append(np.rad2deg(np.arctan(x[1]/ x[0])))
-    return (epochs, yaw)
+        errors.append(error)
+    return (epochs, yaw, errors)
 
 
 def solveLSEModel2(residualData, orbitData, stationsData):
@@ -167,11 +179,12 @@ def solveLSEModel2(residualData, orbitData, stationsData):
     """
     epochs = utils.getEpochsArray(residualData)
     yaw = []
+    errors = []
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
 
-        y2 = solveLSE2(A, rk)
+        y2, error = solveLSE2(A, rk)
 
         try:
             if np.sqrt((y2 - yaw[-1]) ** 2) > 250:
@@ -180,8 +193,9 @@ def solveLSEModel2(residualData, orbitData, stationsData):
             pass
 
         yaw.append(y2)
+        errors.append(error)
 
-    return (epochs, yaw)
+    return (epochs, yaw, errors)
 
 
 def solveLSEModel3(residualData, orbitData, stationsData):
@@ -196,11 +210,12 @@ def solveLSEModel3(residualData, orbitData, stationsData):
     epochs = utils.getEpochsArray(residualData)
     epochs_final = []
     yaw = []
+    errors = []
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
         try:
-            y2 = solveLSE3(A, rk)
+            y2, error = solveLSE3(A, rk)
 
             try:
                 if np.sqrt((y2 - yaw[-1]) ** 2) > 250:
@@ -210,9 +225,12 @@ def solveLSEModel3(residualData, orbitData, stationsData):
 
             yaw.append(y2)
             epochs_final.append(epoch)
+            errors.append(error)
+
         except np.linalg.LinAlgError:
             print("Singular matrix at epoch {}.".format(epoch))
-    return (epochs_final, yaw)
+
+    return (epochs_final, yaw, errors)
 
 
 def computeBlock1DesignMatrixWindow(residualData, orbitData, stationsData, startEpoch, endEpoch):
@@ -339,38 +357,46 @@ def solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_i
     x = np.linalg.inv(AtA).dot(A.transpose()).dot(rk)
 
     yaw = []
+    yaw_error = []
+
+    errors = errorbars.computeFormalError(A, rk, x)
+    print(errors)
+
     for i in range(0, Ne*2, 2):
         x0 = x[i]
         y0 = x[i+1]
         yaw.append(np.rad2deg(np.arctan2(y0, x0)))
+        yaw_error.append(np.rad2deg(np.arctan2(errors[i+1], errors[i])))
 
-    return epochs, yaw
+    return epochs, yaw, yaw_error
 
 
-def final4(residualData, orbitData, stationsData, Ne=5):
+def solveLSEModel4(residualData, orbitData, stationsData, Ne=5):
     """
     This function iterates through groups of epochs (grouped in bins with Ne epochs each).
     For each bin the fourth model estimation is applied. This can also be applied for all available epochs
     at once yielding more precise results than applying it for smaller time intervals.
     """
-    # epochs = utils.getEpochsArray(residualData)
-    epochs, yaw_init = solveLSEModel3(residualData, orbitData, stationsData)
+    epochs, yaw_init, _ = solveLSEModel3(residualData, orbitData, stationsData)
     yaw_init = filterLowpass(yaw_init, Wn=0.1, N=4)
 
     yaw = []
     epoch_final = []
+    errors = []
     for epoch in epochs[::Ne]:
+        print("RUNNING")
         try:
             startEpoch = epoch
             endEpoch = epochs[epochs.index(epoch)+Ne]
-            e, y = solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
+            e, y, error = solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
 
             yaw = yaw + y
             epoch_final = epoch_final + e
+            errors = errors + error
         except (np.linalg.LinAlgError, IndexError):
             print("Singular A matrix for epoch {}".format(epoch))
 
-    return epoch_final, yaw
+    return epoch_final, yaw, errors
 
 
 
