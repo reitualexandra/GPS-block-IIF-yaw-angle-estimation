@@ -302,7 +302,8 @@ def computeBlock3DesignMatrixWindow(residualData, startEpoch, endEpoch):
     for epoch in epochs:
         C = np.zeros((nr_st, len(epochs)))
         C[:, epochs.index(epoch)] = 1
-        C = np.concatenate((C, np.eye(nr_st)), axis=1)
+        # C = np.concatenate((C, 0.001*np.eye(nr_st)), axis=1)
+        C = np.concatenate((C, np.eye(nr_st)), axis=1) # TODO check equation model - why would a smaller weight for bi increase precision?!
         try:
             grandDesignMatrixBlock3 = np.concatenate((grandDesignMatrixBlock3, C), axis=0)
         except:
@@ -338,6 +339,12 @@ def computeGrandDesignMatrix(residualData, orbitData, stationsData, startEpoch, 
     B = np.concatenate((A3, A4), axis=0)
     grandDesignMatrix = np.concatenate((grandDesignMatrix, B), axis=1)
     Rk = np.concatenate((rk, rk2), axis=0)
+
+    #Ne = 360
+    #grandDesignMatrix = np.concatenate((A1, A2), axis=0)
+    #B = np.concatenate((A3[:, 0:Ne], A4[:, 0:Ne]), axis=0)
+    #grandDesignMatrix = np.concatenate((grandDesignMatrix, B), axis=1)
+    #Rk = np.concatenate((rk, rk2), axis=0)
 
     return grandDesignMatrix, Rk
 
