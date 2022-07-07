@@ -158,13 +158,7 @@ def solveLSEModel1(residualData, orbitData, stationsData):
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
         y, error = solveLSE(A, rk)
 
-        try:
-            if np.sqrt((y-yaw[-1])**2) > 250:
-                y = y - 360*np.sign(y)
-        except IndexError:
-            pass
-
-        yaw.append(y) # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
+        yaw.append(y)
         errors.append(error)
     return (epochs, yaw, errors)
 
@@ -183,14 +177,7 @@ def solveLSEModel2(residualData, orbitData, stationsData):
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-
         y2, error = solveLSE2(A, rk)
-
-        try:
-            if np.sqrt((y2 - yaw[-1]) ** 2) > 250:
-                y2 = y2 - 360 * np.sign(y2)
-        except IndexError:
-            pass
 
         yaw.append(y2)
         errors.append(error)
@@ -216,12 +203,6 @@ def solveLSEModel3(residualData, orbitData, stationsData):
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
         try:
             y2, error = solveLSE3(A, rk)
-
-            try:
-                if np.sqrt((y2 - yaw[-1]) ** 2) > 250:
-                    y2 = y2 - 360 * np.sign(y2)
-            except IndexError:
-                pass
 
             yaw.append(y2)
             epochs_final.append(epoch)
@@ -302,7 +283,8 @@ def computeBlock3DesignMatrixWindow(residualData, startEpoch, endEpoch):
     for epoch in epochs:
         C = np.zeros((nr_st, len(epochs)))
         C[:, epochs.index(epoch)] = 1
-        C = np.concatenate((C, np.eye(nr_st)), axis=1)
+        # C = np.concatenate((C, 0.001*np.eye(nr_st)), axis=1)
+        C = np.concatenate((C, np.eye(nr_st)), axis=1) # TODO check equation model - why would a smaller weight for bi increase precision?!
         try:
             grandDesignMatrixBlock3 = np.concatenate((grandDesignMatrixBlock3, C), axis=0)
         except:
@@ -339,6 +321,12 @@ def computeGrandDesignMatrix(residualData, orbitData, stationsData, startEpoch, 
     grandDesignMatrix = np.concatenate((grandDesignMatrix, B), axis=1)
     Rk = np.concatenate((rk, rk2), axis=0)
 
+    #Ne = 360
+    #grandDesignMatrix = np.concatenate((A1, A2), axis=0)
+    #B = np.concatenate((A3[:, 0:Ne], A4[:, 0:Ne]), axis=0)
+    #grandDesignMatrix = np.concatenate((grandDesignMatrix, B), axis=1)
+    #Rk = np.concatenate((rk, rk2), axis=0)
+
     return grandDesignMatrix, Rk
 
 
@@ -360,8 +348,6 @@ def solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_i
     yaw_error = []
 
     errors = errorbars.computeFormalError(A, rk, x)
-    print(errors)
-
     for i in range(0, Ne*2, 2):
         x0 = x[i]
         y0 = x[i+1]
@@ -384,7 +370,6 @@ def solveLSEModel4(residualData, orbitData, stationsData, Ne=5):
     epoch_final = []
     errors = []
     for epoch in epochs[::Ne]:
-        print("RUNNING")
         try:
             startEpoch = epoch
             endEpoch = epochs[epochs.index(epoch)+Ne]
@@ -397,6 +382,23 @@ def solveLSEModel4(residualData, orbitData, stationsData, Ne=5):
             print("Singular A matrix for epoch {}".format(epoch))
 
     return epoch_final, yaw, errors
+
+
+def shiftYawPlacement(yaw_estimated, yaw_nominal, Ne=3): # TODO shifting function AND polyfit for initial yaw values
+    for yaw in yaw_estimated:
+        index = yaw_estimated.index(yaw)
+        start_value = yaw_nominal[yaw_estimated.index(yaw)]
+        if np.sqrt((yaw - start_value) ** 2) > 200 and index <= Ne:
+            yaw_estimated[index] = yaw - 360 * np.sign(yaw_estimated[index])
+        else:
+            median_value = np.median(yaw_estimated[index-Ne:index])
+            for _ in range(0, 2):
+                if np.sqrt((yaw - median_value) ** 2) > 200:
+                    yaw_estimated[index] = yaw + 360 * np.sign(yaw_estimated[index-1])
+                    #yaw_estimated[index] = yaw + 360 * np.sign(median_value)
+                    #if np.sqrt((yaw - median_value) ** 2) > 200 or np.sqrt((yaw - yaw_estimated[index - 1]) ** 2) > 200:
+                    #    yaw_estimated[index] = yaw - 2 * 360 * np.sign(yaw_estimated[index - 1])
+    return yaw_estimated
 
 
 

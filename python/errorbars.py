@@ -9,16 +9,12 @@ def computeFormalError(A, r, x):
     It uses as inputs the design matrix A, the data vector r (containing residuals)
     and the estimated variables vector x.
     """
-
-    #print(np.argwhere(np.isnan(A)))
-
     n_p = len(x) # number of unknowns - number of estimated variables
     n = len(r)  # number of observations (data samples) - per epoch
     e = r - A.dot(x) # estimation residuals vector
 
     m = (e.dot(e)) / (n - n_p)
     m0 = np.sqrt(m * np.sign(m))
-
     Q = np.linalg.inv(A.transpose().dot(A))
 
     eps = []
@@ -26,6 +22,5 @@ def computeFormalError(A, r, x):
     for item in diag:
         e = m0 * np.sqrt(item*np.sign(item))
         eps.append(e)
-    print(np.array(eps))
 
     return eps

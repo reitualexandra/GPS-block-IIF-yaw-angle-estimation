@@ -318,7 +318,7 @@ def getStationsList(orbitData, stationsData):
     return stations_list
 
 
-def residual(azi, nad, yaw, noise=0.01):
+def residual(azi, nad, yaw, noise=0.007):
     """
     This function computes a residual sample at a given epoch for a given station.
     :param azi: azimuth angle in radians
@@ -328,9 +328,8 @@ def residual(azi, nad, yaw, noise=0.01):
     :return: residual sample rk in meters
     """
     yaw = np.deg2rad(yaw)
-    # TODO see why the algorithm seems to estimate -yaw instead of yaw ?!
-    rk = constants.PCO_x * np.cos(-yaw) * np.sin(azi) * np.sin(nad) + \
-         constants.PCO_x * np.sin(-yaw) * np.cos(azi) * np.sin(nad) + \
+    rk = constants.PCO_x * np.cos(yaw) * np.sin(azi) * np.sin(nad) + \
+         constants.PCO_x * np.sin(yaw) * np.cos(azi) * np.sin(nad) + \
          np.random.normal(0, noise, 1)[0]
     return rk
 
