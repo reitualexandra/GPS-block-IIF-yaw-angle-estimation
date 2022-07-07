@@ -20,7 +20,7 @@ if __name__ == '__main__':
     # residualDataReal = estimation.filterResiduals(residualDataReal)
     residualDataReal = utils.cleanResData(residualDataReal)
     Ne = len(orbitData['mjd'])-1
-    Ne = 30
+    #Ne = 30
 
     # Create fake residual file, then read residuals and plot
     utils.simulatedResiduals(stationsList, orbitData, year, doy, prn, man_simulated)
@@ -39,7 +39,7 @@ if __name__ == '__main__':
 
 
     # Estimate yaw from simulated residuals
-    (epochs, yaw, errors) = estimation.solveLSEModel1(residualDataSimulated, orbitData, stationsData)
+    '''(epochs, yaw, errors) = estimation.solveLSEModel1(residualDataSimulated, orbitData, stationsData)
     graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_sim_model1")
 
     (epochs, yaw, errors) = estimation.solveLSEModel2(residualDataSimulated, orbitData, stationsData)
@@ -52,11 +52,12 @@ if __name__ == '__main__':
     graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_sim_model4")
     graphics.plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, year, doy, prn, man,
                                        extension="_sim_model4_bars")
-
+    '''
     # Estimate yaw from real residuals
     #graphics.plotResiduals(residualDataReal, stationsData, year, doy, prn, man)
-    #(epochs, yaw, errors) = estimation.solveLSEModel1(residualDataReal, orbitData, stationsData)
-    # graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_real_model1")
+    (epochs, yaw, errors) = estimation.solveLSEModel1(residualDataReal, orbitData, stationsData)
+    yaw = estimation.shiftYawPlacement(yaw, orbitData['yaw'])
+    graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_real_model1")
     #graphics.plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, year, doy, prn, man, extension="_real_model1")
 
     (epochs, yaw, errors) = estimation.solveLSEModel2(residualDataReal, orbitData, stationsData)
