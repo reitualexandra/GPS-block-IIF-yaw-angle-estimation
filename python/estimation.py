@@ -106,7 +106,7 @@ def solveLSE(A, rk):
     return yaw, yaw_error
 
 
-def solveLSE2(A, rk):
+def solveLSE2(A, rk, y1):
     """
     This function gets a design matrix and a residual vector (for one epoch) and solves the LSE estimation.
     This is used for model 2, as the other models require the design matrix to be modified.
@@ -114,7 +114,7 @@ def solveLSE2(A, rk):
     :param rk: measurements vector (residual)
     :return: yaw estimated from LSE solution
     """
-    y1, _ = solveLSE(A, rk)
+    #y1, _ = solveLSE(A, rk)
     A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
                         2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
     r2 = np.append(rk, [2 * (constants.PCO_x ** 2)], axis=0)
@@ -128,7 +128,7 @@ def solveLSE2(A, rk):
     return y2, yaw_error
 
 
-def solveLSE3(A, rk):
+def solveLSE3(A, rk, y1):
     """
     This function gets a design matrix and a residual vector (for one epoch) and solves the LSE estimation.
     This is used for model 3, as the other models require the design matrix to be modified.
@@ -136,7 +136,7 @@ def solveLSE3(A, rk):
     :param rk: measurements vector (residual)
     :return: yaw estimated from LSE solution
     """
-    y1, _ = solveLSE(A, rk)
+    #y1, _ = solveLSE(A, rk)
     A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
                         2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
     b = np.ones((len(rk), 1))
@@ -173,6 +173,7 @@ def solveLSEModel1(residualData, orbitData, stationsData):
 
         yaw.append(y)
         errors.append(error)
+    yaw = shiftYawPlacement(yaw, orbitData['yaw'])
     return (epochs, yaw, errors)
 
 
@@ -184,17 +185,21 @@ def solveLSEModel2(residualData, orbitData, stationsData):
     :param stationsData: dictionary containing stations data (index, name and position)
     :return: estimated yaw angles in degrees and their corresponding epochs
     """
-    epochs = utils.getEpochsArray(residualData)
+    epochs = utils.getEpochsArray(residualData) #TODO add initial conditions outside of solveLSE2 - to implement filtering !!!
     yaw = []
     errors = []
+    _, yaw_init, _ = solveLSEModel1(residualData, orbitData, stationsData)
+    yaw_init = shiftYawPlacement(yaw_init, orbitData['yaw'])
+    #yaw_init = interpolate(epochs, yaw_init)
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-        y2, error = solveLSE2(A, rk)
+        y2, error = solveLSE2(A, rk, yaw_init[epochs.index(epoch)])
 
         yaw.append(y2)
         errors.append(error)
 
+    yaw = shiftYawPlacement(yaw, orbitData['yaw'])
     return (epochs, yaw, errors)
 
 
@@ -212,10 +217,14 @@ def solveLSEModel3(residualData, orbitData, stationsData):
     yaw = []
     errors = []
 
+    _, yaw_init, _ = solveLSEModel2(residualData, orbitData, stationsData)
+    yaw_init = shiftYawPlacement(yaw_init, orbitData['yaw'])
+    # yaw_init = interpolate(epochs, yaw_init)
+
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
         try:
-            y2, error = solveLSE3(A, rk)
+            y2, error = solveLSE3(A, rk, yaw_init[epochs.index(epoch)])
 
             yaw.append(y2)
             epochs_final.append(epoch)
@@ -223,7 +232,7 @@ def solveLSEModel3(residualData, orbitData, stationsData):
 
         except np.linalg.LinAlgError:
             print("Singular matrix at epoch {}.".format(epoch))
-
+    yaw = shiftYawPlacement(yaw, orbitData['yaw'])
     return (epochs_final, yaw, errors)
 
 
@@ -296,8 +305,7 @@ def computeBlock3DesignMatrixWindow(residualData, startEpoch, endEpoch):
     for epoch in epochs:
         C = np.zeros((nr_st, len(epochs)))
         C[:, epochs.index(epoch)] = 1
-        # C = np.concatenate((C, 0.001*np.eye(nr_st)), axis=1)
-        C = np.concatenate((C, np.eye(nr_st)), axis=1) # TODO check equation model - why would a smaller weight for bi increase precision?!
+        C = np.concatenate((C, np.eye(nr_st)), axis=1)
         try:
             grandDesignMatrixBlock3 = np.concatenate((grandDesignMatrixBlock3, C), axis=0)
         except:
@@ -376,8 +384,12 @@ def solveLSEModel4(residualData, orbitData, stationsData, Ne=5):
     For each bin the fourth model estimation is applied. This can also be applied for all available epochs
     at once yielding more precise results than applying it for smaller time intervals.
     """
+    #epochs, yaw_init, _ = solveLSEModel3(residualData, orbitData, stationsData)
+    #yaw_init = filterLowpass(yaw_init, Wn=0.1, N=4)
+
     epochs, yaw_init, _ = solveLSEModel3(residualData, orbitData, stationsData)
-    yaw_init = filterLowpass(yaw_init, Wn=0.1, N=4)
+    yaw_init = shiftYawPlacement(yaw_init, orbitData['yaw'])
+    #yaw_init = interpolate(epochs, yaw_init)
 
     yaw = []
     epoch_final = []
@@ -393,7 +405,7 @@ def solveLSEModel4(residualData, orbitData, stationsData, Ne=5):
             errors = errors + error
         except (np.linalg.LinAlgError, IndexError):
             print("Singular A matrix for epoch {}".format(epoch))
-
+    yaw = shiftYawPlacement(yaw, orbitData['yaw'])
     return epoch_final, yaw, errors
 
 
