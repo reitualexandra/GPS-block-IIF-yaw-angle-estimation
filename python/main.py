@@ -7,8 +7,8 @@ if __name__ == '__main__':
 
     year = 21
     prn = 27
-    doy = 58
-    man = "M1"
+    doy = 59
+    man = "M2"
     man_simulated = "{}_sim".format(man) # simulated .res files contain maneuvers with an S at the end to differentiate from real residuals
 
 
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     #graphics.plotResiduals(residualDataReal, stationsData, year, doy, prn, man)
     (epochs, yaw, errors) = estimation.solveLSEModel1(residualDataReal, orbitData, stationsData)
     yaw = estimation.shiftYawPlacement(yaw, orbitData['yaw'])
-    graphics.plotEstimatedYaw(epochs, yaw, orbitData, year, doy, prn, man, extension="_real_model1")
+    graphics.plotEstimatedYawInterpolated(epochs, yaw, orbitData, year, doy, prn, man, extension="_real_model1")
     #graphics.plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, year, doy, prn, man, extension="_real_model1")
 
     (epochs, yaw, errors) = estimation.solveLSEModel2(residualDataReal, orbitData, stationsData)

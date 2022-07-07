@@ -4,6 +4,19 @@ import utils
 import numpy as np
 from scipy.linalg import block_diag
 from scipy.signal import butter, filtfilt
+from scipy.interpolate import make_lsq_spline
+
+
+def interpolate(epochs, yaw):
+    yaw = filterLowpass(yaw, Wn=0.1, N=8)
+    t = []
+    k = 10
+    t = np.r_[(epochs[0],) * (k + 1),
+              t,
+              (epochs[-1],) * (k + 1)]
+    f = make_lsq_spline(epochs, yaw, t, k)
+
+    return f(epochs)
 
 
 def filterLowpass(residualSignal, Wn=0.5, N=8):
