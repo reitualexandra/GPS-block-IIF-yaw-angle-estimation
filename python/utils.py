@@ -3,7 +3,37 @@ import constants
 import numpy as np
 
 
-def getOrbData(year=21, doy=58, prn=27, man="M1"):
+def getSlopeData(filename):
+    slopeData = {}
+
+    slopeData['name'] = []
+    slopeData['inverted'] = []
+    slopeData['delta_psi'] = []
+    slopeData['t_delay'] = []
+    slopeData['slope_n'] = []
+    slopeData['slope_r'] = []
+    slopeData['beta'] = []
+
+    filepath = os.path.join(constants.OUT, filename)
+
+    file = open(filepath)
+    lines = file.readlines()
+    for line in lines[1:]:
+        items = [x for x in line.split('\t') if x != ""]
+        slopeData['name'].append(items[0])
+
+        slopeData['inverted'].append(int(items[1]))
+        slopeData['delta_psi'].append(float(items[2]))
+        slopeData['t_delay'].append(float(items[3]))
+
+        slopeData['slope_n'].append(float(items[4]))
+        slopeData['slope_r'].append(float(items[5]))
+        slopeData['beta'].append(float(items[6]))
+
+    return slopeData
+
+
+def getOrbData(filename):
     """
     This function reads orbit files and stores the data in a dictionary names orbitData.
     This data is necessary to simulate measurements for yaw angles - and to compute nadir and azimuth angles.
@@ -27,7 +57,6 @@ def getOrbData(year=21, doy=58, prn=27, man="M1"):
     orbitData['yaw'] = []
     orbitData['shadow_flag'] = []
 
-    filename = "YAW" + str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + ".orb"
     filepath = os.path.join(constants.OUT, filename)
 
     file = open(filepath)
@@ -67,7 +96,7 @@ def getSatellitePositionVelocity(orbitData, epoch):
     return (r_sat, v_sat)
 
 
-def getResData(year=21, doy=58, prn=27, man="M1"):
+def getResData(filename):
     """
     This function reads residual files and stores the data in a dictionary names residualData.
     This data is necessary to estimate yaw angles.
@@ -79,7 +108,6 @@ def getResData(year=21, doy=58, prn=27, man="M1"):
     """
     residualData = {}
 
-    filename = "YAW" + str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + ".res"
     filepath = os.path.join(constants.OUT, filename)
 
     file = open(filepath)
@@ -318,7 +346,7 @@ def getStationsList(orbitData, stationsData):
     return stations_list
 
 
-def residual(azi, nad, yaw, noise=0.007):
+def residual(azi, nad, yaw, noise=0.001):
     """
     This function computes a residual sample at a given epoch for a given station.
     :param azi: azimuth angle in radians
@@ -334,7 +362,7 @@ def residual(azi, nad, yaw, noise=0.007):
     return rk
 
 
-def simulatedResiduals(stationsList, orbitData, year=21, doy=58, prn=27, man="M1S"):
+def simulatedResiduals(stationsList, orbitData, year=21, doy=58, prn=27, man="M1S", noise=0.001):
     """
     This function reates a fake residual log file, in the exact same format as the .res files created by BPE.
     This format is used in order to minimize the written code - the same functions which are used for
@@ -345,7 +373,7 @@ def simulatedResiduals(stationsList, orbitData, year=21, doy=58, prn=27, man="M1
     :param filename: name given to fake .res file
     :return: writes .res file, with no return value
     """
-    filename = "YAW" + str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + ".res"
+    filename = "YAW" + str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + "_sim.res"
     filepath = os.path.join(constants.OUT, filename)
     file = open(filepath, "w")
 
@@ -357,8 +385,33 @@ def simulatedResiduals(stationsList, orbitData, year=21, doy=58, prn=27, man="M1
             azi, nad = getAzimuthNadirSatellite(r_sat, v_sat, station_index, stationsList)
             _, ele = getAzimuthElevationTopocentric(r_sat, station_index, stationsList)
 
-            rk = residual(azi, nad, orbitData['yaw'][i])
+            rk = residual(azi, nad, orbitData['yaw'][i], noise=noise)
             mjd = orbitData['mjd'][i]
             line = "{} {} {} {} {} {}\n".format(station_index, prn, mjd, rk, np.rad2deg(azi), np.rad2deg(ele))
             file.write(line)
     file.close()
+
+
+def logInfo(yaw, yaw_n, errors, filename, extension):
+    yaw = np.array(yaw)
+    yaw_n = np.array(yaw_n)
+    errors = np.array(errors)
+
+    std_dev = np.std(yaw-yaw_n)
+    rms = np.sqrt(np.mean(np.square(yaw-yaw_n)))
+    err_mean = np.mean(errors)
+
+    logName = filename[0:14] + "_{}.txt".format(extension)
+    subdir = filename[0:14]
+    if not os.path.exists(os.path.join(constants.FIGS, subdir)):
+        os.makedirs(os.path.join(constants.FIGS, subdir))
+    logPath = os.path.join(constants.FIGS, subdir, logName)
+
+    file = open(logPath, "a")
+    file.write("{}\t {}\t {}\n".format(std_dev, rms, err_mean))
+    file.close()
+
+
+
+
+

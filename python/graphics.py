@@ -1,10 +1,34 @@
 import constants
 import estimation
+import utils
 import matplotlib.pyplot as plt
+plt.rcParams.update({'font.size': 16})
+import numpy as np
 import os
+import datetime
 
 
-def plotResiduals(residualData, stationsData, year=21, doy=58, prn=27, man="M1"):
+def mjd2hms(mjd):
+    times = []
+
+    for item in mjd:
+        hms = 10**5 * (item - int(item))
+        hh = str(datetime.timedelta(seconds=hms))[0:5]
+        if hh[-1] == ":":
+            hh = hh[0:4]
+        times.append(hh)
+    return times
+
+
+def getDetails(filename):
+    year = filename[3:5]
+    doy = filename[5:9]
+    prn = filename[11:14]
+    man = filename[9:11]
+    return year, doy, man, prn
+
+
+def plotResiduals(residualData, stationsData, filename):
     """
     This function plots the data read from .res files and saves them in a .png figure.
     :param residualData: dictionary containing residual data as created by utils.getResData()
@@ -15,8 +39,14 @@ def plotResiduals(residualData, stationsData, year=21, doy=58, prn=27, man="M1")
     :param man: maneuver type - used to construct .res file name
     :return: writes .jpg figure, with no return value
     """
-    figName = str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + ".jpg"
-    figPath = os.path.join(constants.FIGS, figName)
+    year, doy, man, prn = getDetails(filename)
+    figName = filename[0:14] + ".jpg"
+
+    subdir = filename[0:14]
+    if not os.path.exists(os.path.join(constants.FIGS, subdir)):
+        os.makedirs(os.path.join(constants.FIGS, subdir))
+
+    figPath = os.path.join(constants.FIGS, subdir, figName)
     plt.figure(figsize=(12, 6))
 
     for station_index in residualData.keys():
@@ -26,15 +56,19 @@ def plotResiduals(residualData, stationsData, year=21, doy=58, prn=27, man="M1")
 
         plt.plot(tk, rk, label=st_name)
 
-    plt.legend(loc="upper left")
+    tk = utils.getEpochsArray(residualData)
+    labels = mjd2hms(tk)
+    plt.xticks(tk[::60], labels[::60])
+
+    #plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), mode="expand")
     plt.grid()
-    plt.xlabel("Time (MJD)")
-    plt.ylabel("Residual (meters)")
-    plt.title("Residual values for PRN " + str(prn) + ", DOY " + str(doy) + ", maneuver type " + man)
+    plt.xlabel("Time")
+    plt.ylabel("Residual (m)")
+    plt.title("PRN " + str(prn) + ", DOY " + str(doy)[0:3] + ", " + man)
     plt.savefig(figPath)
 
 
-def plotNominalYaw(orbitData, year=21, doy=58, prn=27, man="M1", savefig=True):
+def plotNominalYaw(orbitData, filename, savefig=False):
     """
     This function plots the nominal yaw angle read from .orb files, alongside the shadow marking.
     :param orbitData: dictionary containing data read from .orb file, as created by utils.getOrbData()
@@ -44,31 +78,41 @@ def plotNominalYaw(orbitData, year=21, doy=58, prn=27, man="M1", savefig=True):
     :param man: maneuver type - used to construct figure name
     :return: writes .jpg figure, with no return value
     """
-    figName = str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + "_yawn.jpg"
-    figPath = os.path.join(constants.FIGS, figName)
-    plt.figure(figsize=(12, 6))
+    year, doy, man, prn = getDetails(filename)
+    figName = filename[0:14] + "_yawn.jpg"
+
+    subdir = filename[0:14]
+    if not os.path.exists(os.path.join(constants.FIGS, subdir)):
+        os.makedirs(os.path.join(constants.FIGS, subdir))
+
+    figPath = os.path.join(constants.FIGS, subdir, figName)
 
     time = orbitData['mjd']
     yaw = orbitData['yaw']
     shadow = orbitData['shadow_flag']
     beta = [str(orbitData['beta'][0]), str(orbitData['beta'][-1])]
 
-    plt.plot(time, yaw)
+    plt.figure(figsize=(12, 6))
+    plt.plot(time, yaw, linestyle='dashed', color="red", label="Modeled")
+
+    labels = mjd2hms(time)
+    plt.xticks(time[::60], labels[::60])
+
     for i in range(0, len(shadow)-1):
         if shadow[i] == 1:
             plt.axvspan(time[i], time[i+1], color='lightgrey', alpha=0.75, lw=0, zorder=-1)
     plt.grid()
-    plt.xlabel("Time (MJD)")
-    plt.ylabel("Yaw angle (degrees)")
-    plt.title("Yaw angle values for PRN " + str(prn) + ", DOY " + str(doy) + ", maneuver type " +
-              man + ", ß: " + beta[0] + "° - " + beta[1] + "°")
+    plt.xlabel("Time")
+    plt.ylabel("Ψ angle (deg)")
+    plt.title("PRN " + str(prn) + ", DOY " + str(doy)[0:3] + ", " +
+              man + ", " + min(beta) + "° < ß < " + max(beta) + "°")
     if savefig:
         plt.savefig(figPath)
     else:
         return plt
 
 
-def plotEstimatedYaw(epochs, yaw, orbitData, year=21, doy=58, prn=27, man="M1", extension=""):
+def plotEstimatedYaw(epochs, yaw, orbitData, filename, extension=""):
     """
     This function plots the estimated yaw values over the nominal ones read from .orb data file.
     :param epochs: epochs over which yaw was estimated
@@ -80,16 +124,23 @@ def plotEstimatedYaw(epochs, yaw, orbitData, year=21, doy=58, prn=27, man="M1", 
     :param man: maneuver type - used to construct figure name
     :return:
     """
-    figName = str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + "_yawest{}.jpg".format(extension)
-    figPath = os.path.join(constants.FIGS, figName)
-    plt = plotNominalYaw(orbitData, year, doy, prn, man, savefig=False)
-    plt.scatter(epochs, yaw, marker='.', color='r', zorder=1)
+    figName = filename[0:14] + "_yawest{}.jpg".format(extension)
+    yaw = [x * (-1) for x in yaw]
 
+    subdir = filename[0:14]
+    if not os.path.exists(os.path.join(constants.FIGS, subdir)):
+        os.makedirs(os.path.join(constants.FIGS, subdir))
+
+    figPath = os.path.join(constants.FIGS, subdir, figName)
+    plt = plotNominalYaw(orbitData, filename)
+    plt.scatter(epochs, yaw, marker='.', color='cornflowerblue', zorder=1, label="Measured")
+
+    plt.legend(loc="upper right")
     plt.savefig(figPath)
 
 
 
-def plotEstimatedYawInterpolated(epochs, yaw, orbitData, year=21, doy=58, prn=27, man="M1", extension=""):
+def plotEstimatedYawInterpolated(epochs, yaw, orbitData, filename, extension=""):
     """
     This function plots the estimated yaw values over the nominal ones read from .orb data file.
     :param epochs: epochs over which yaw was estimated
@@ -101,18 +152,25 @@ def plotEstimatedYawInterpolated(epochs, yaw, orbitData, year=21, doy=58, prn=27
     :param man: maneuver type - used to construct figure name
     :return:
     """
-    figName = str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + "_yawest{}.jpg".format(extension)
-    figPath = os.path.join(constants.FIGS, figName)
-    plt = plotNominalYaw(orbitData, year, doy, prn, man, savefig=False)
-    plt.scatter(epochs, yaw, marker='.', color='r', zorder=1)
+    figName = filename[0:14] + "_yawest{}.jpg".format(extension)
+    yaw = [x * (-1) for x in yaw]
+
+    subdir = filename[0:14]
+    if not os.path.exists(os.path.join(constants.FIGS, subdir)):
+        os.makedirs(os.path.join(constants.FIGS, subdir))
+
+    figPath = os.path.join(constants.FIGS, subdir, figName)
+    plt = plotNominalYaw(orbitData, filename)
+    plt.scatter(epochs, yaw, marker='.', color='cornflowerblue', zorder=1, label="Measured")
 
     y_filt = estimation.interpolate(epochs, yaw)
     plt.plot(epochs, y_filt, color='tomato')
 
+    plt.legend(loc="upper right")
     plt.savefig(figPath)
 
 
-def plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, year=21, doy=58, prn=27, man="M1", extension=""):
+def plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, filename, extension=""):
     """
     This function plots the estimated yaw values over the nominal ones read from .orb data file.
     :param epochs: epochs over which yaw was estimated
@@ -124,11 +182,160 @@ def plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, year=21, doy=58, p
     :param man: maneuver type - used to construct figure name
     :return:
     """
-    figName = str(year) + "0" + str(doy) + "0" + man + "G" + str(prn) + "_yawest{}.jpg".format(extension)
-    figPath = os.path.join(constants.FIGS, figName)
-    plt = plotNominalYaw(orbitData, year, doy, prn, man, savefig=False)
-    plt.errorbar(epochs[::5], yaw[::5], yerr=errors[::5])
-    #plt.errorbar(epochs, yaw, yerr=errors)
-    plt.scatter(epochs, yaw, marker='.', color='r', zorder=1)
+    figName = filename[0:14] + "_yawest{}.jpg".format(extension)
+    errors = [x*0.5 for x in errors]
+    yaw = [x * (-1) for x in yaw]
 
+    subdir = filename[0:14]
+    if not os.path.exists(os.path.join(constants.FIGS, subdir)):
+        os.makedirs(os.path.join(constants.FIGS, subdir))
+
+    figPath = os.path.join(constants.FIGS, subdir, figName)
+    plt = plotNominalYaw(orbitData, filename, savefig=False)
+
+    plt.errorbar(epochs, yaw, yerr=errors, ecolor="powderblue", zorder=0, ls='none')
+    plt.scatter(epochs, yaw, marker='.', color='cornflowerblue', zorder=1, label="Measured")
+
+    plt.legend(loc="upper right")
     plt.savefig(figPath)
+
+
+def plotLogInfo(noiseValues, filename, extension):
+    logName = filename[0:14] + "_{}.txt".format(extension)
+    figName = filename[0:14] + "_{}".format(extension)
+    subdir = filename[0:14]
+    if not os.path.exists(os.path.join(constants.FIGS, subdir)):
+        os.makedirs(os.path.join(constants.FIGS, subdir))
+    logPath = os.path.join(constants.FIGS, subdir, logName)
+    figPath = os.path.join(constants.FIGS, subdir, figName)
+
+    file = open(logPath, "r")
+    lines = file.readlines()
+
+    stds = []
+    dists= []
+    errs = []
+
+    for line in lines:
+        items = [x for x in line.split(' ') if x != ""]
+        stds.append(float(items[0]))
+        dists.append(float(items[1]))
+        errs.append(float(items[2]))
+
+    noiseValues = np.array(noiseValues)*1000
+
+    plt.figure(figsize=(12, 6))
+    plt.scatter(noiseValues, stds, marker='o', color='cornflowerblue', zorder=1)
+
+    m, b = np.polyfit(noiseValues, stds, 1)
+    plt.plot(noiseValues, m * noiseValues + b, linestyle='dashed', color="red")
+
+    plt.grid()
+    plt.xlabel("Noise (mm)")
+    plt.ylabel("STD (deg)")
+    plt.title("Standard deviation variation with noise")
+    plt.savefig(figPath + "_std.jpg")
+
+    plt.figure(figsize=(12, 6))
+    plt.scatter(noiseValues, dists, marker='o', color='cornflowerblue', zorder=1)
+
+    m, b = np.polyfit(noiseValues, dists, 1)
+    plt.plot(noiseValues, m * noiseValues + b, linestyle='dashed', color="red")
+
+    plt.grid()
+    plt.xlabel("Noise (mm)")
+    plt.ylabel("RMS (deg)")
+    plt.title("Root mean square variation with noise")
+    plt.savefig(figPath + "_rms.jpg")
+
+    plt.figure(figsize=(12, 6))
+    plt.scatter(noiseValues, errs, marker='o', color='cornflowerblue', zorder=1)
+
+    m, b = np.polyfit(noiseValues, errs, 1)
+    plt.plot(noiseValues, m * noiseValues + b, linestyle='dashed', color="red")
+
+    plt.grid()
+    plt.xlabel("Noise (mm)")
+    plt.ylabel("Mean errors (deg)")
+    plt.title("Mean formal errors variation with noise")
+    plt.savefig(figPath + "_err.jpg")
+
+
+def plotSlopeOverBeta(slopeData, extension=""):
+    figName = "SlopeOverBeta_{}.jpg".format(extension)
+    figPath = os.path.join(constants.FIGS, figName)
+
+    plt.figure(figsize=(12, 6))
+    plt.scatter(slopeData['beta'], slopeData['slope_n'], marker='o', color='fuchsia', zorder=1, label="Modeled")
+    plt.scatter(slopeData['beta'], slopeData['slope_r'], marker='^', color='lime', zorder=1, label="Measured")
+
+    plt.grid()
+    plt.xlabel("ß (deg)")
+    plt.ylabel("Slope (deg/s)")
+    plt.title("Slope of nominal model over ß angle\n Estimated median slope m={:.3f} (deg/s)".format(np.median(slopeData['slope_r'])))
+    plt.legend(loc="upper right")
+    plt.savefig(figPath)
+
+
+
+def plotInvertedOverBeta(slopeData, extension=""):
+    figName = "SlopeInvOverBeta_{}.jpg".format(extension)
+    figPath = os.path.join(constants.FIGS, figName)
+
+    plt.figure(figsize=(8, 6))
+
+    invBetas = []
+    invVal = []
+    normBetas = []
+    normVal = []
+    for i in range(0, len(slopeData['beta'])):
+        if slopeData['inverted'][i]==1:
+            invBetas.append(slopeData['beta'][i])
+            invVal.append(slopeData['inverted'][i])
+        else:
+            normBetas.append(slopeData['beta'][i])
+            normVal.append(slopeData['inverted'][i])
+
+    plt.scatter(invBetas, invVal, marker='o', color='fuchsia', zorder=1, label="Inverted", s=80)
+    plt.scatter(normBetas, normVal, marker='^', color='lime', zorder=1, label="Normal", s=80)
+    plt.yticks([-0.25, 0, 0.5, 1, 1.25], ["", "+", "", "-", ""])
+
+    plt.grid()
+    plt.xlabel("ß (deg)")
+    plt.ylabel("Slope sign")
+    plt.title("Slope inversion over ß angle")
+    plt.legend(loc="upper right")
+    plt.savefig(figPath)
+
+
+def plotEstimatedSlopeOverBeta(slopeData, extension=""):
+    figName = "SlopeEstOverBeta_{}.jpg".format(extension)
+    figPath = os.path.join(constants.FIGS, figName)
+
+    noonSlopes = []
+    noonBetas = []
+    midnSlopes = []
+    midnBetas = []
+    for name in slopeData['name']:
+        index = slopeData['name'].index(name)
+        if name[9]=="N":
+            noonSlopes.append(slopeData['slope_r'][index])
+            noonBetas.append(slopeData['beta'][index])
+        else:
+            midnSlopes.append(slopeData['slope_r'][index])
+            midnBetas.append(slopeData['beta'][index])
+
+
+    plt.figure(figsize=(12, 6))
+    plt.scatter(noonBetas, noonSlopes, marker='o', color='fuchsia', zorder=1, label="Noon turns")
+    plt.scatter(midnBetas, midnSlopes, marker='^', color='lime', zorder=1, label="Midnight turns")
+
+    plt.grid()
+    plt.xlabel("ß (deg)")
+    plt.ylabel("Slope (deg/s)")
+    plt.title("Estimated slope over ß angle. Estimated median slope:\n noon: {:.3f} (deg/s), midn: {:.3f} (deg/s)".format(
+        np.median(noonSlopes), np.median(midnSlopes)))
+    plt.legend(loc="upper right")
+    plt.savefig(figPath)
+
+
