@@ -305,7 +305,7 @@ def computeBlock3DesignMatrixWindow(residualData, startEpoch, endEpoch):
     for epoch in epochs:
         C = np.zeros((nr_st, len(epochs)))
         C[:, epochs.index(epoch)] = 1
-        C = np.concatenate((C, np.eye(nr_st)), axis=1)
+        C = np.concatenate((C, 0.1*np.eye(nr_st)), axis=1)
         try:
             grandDesignMatrixBlock3 = np.concatenate((grandDesignMatrixBlock3, C), axis=0)
         except:
