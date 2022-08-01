@@ -1,6 +1,7 @@
 import constants
 import estimation
 import utils
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 plt.rcParams.update({'font.size': 16})
 import numpy as np
@@ -66,6 +67,45 @@ def plotResiduals(residualData, stationsData, filename):
     plt.ylabel("Residual (m)")
     plt.title("PRN " + str(prn) + ", DOY " + str(doy)[0:3] + ", " + man)
     plt.savefig(figPath)
+    #plt.show()
+
+
+def plotResidualsCorrected(residualData, correctedResidualData, filename, extension=""):
+    year, doy, man, prn = getDetails(filename)
+    figName = filename[0:14] + "{}.jpg".format(extension)
+
+    subdir = filename[0:14]
+    if not os.path.exists(os.path.join(constants.FIGS, subdir)):
+        os.makedirs(os.path.join(constants.FIGS, subdir))
+
+    figPath = os.path.join(constants.FIGS, subdir, figName)
+    plt.figure(figsize=(12, 6))
+
+    for station_index in residualData.keys():
+        tk1 = residualData[station_index]['mjd']
+        rk1 = residualData[station_index]['rk']
+        plt.scatter(tk1, rk1, marker='^', color='lime')
+
+    for station_index in residualData.keys():
+        tk2 = correctedResidualData[station_index]['mjd']
+        rk2 = correctedResidualData[station_index]['rk']
+        plt.scatter(tk2, rk2, marker='.', color='fuchsia')
+
+    tk = utils.getEpochsArray(residualData)
+    labels = mjd2hms(tk)
+    plt.xticks(tk[::60], labels[::60])
+
+    lime_patch = mpatches.Patch(color='lime', label='Original residuals')
+    purple_patch = mpatches.Patch(color='fuchsia', label='Corrected residuals')
+    plt.legend(handles=[lime_patch, purple_patch], loc='lower right')
+    # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), mode="expand")
+    plt.grid()
+    plt.xlabel("Time")
+    plt.ylabel("Residual (m)")
+    plt.title("PRN " + str(prn) + ", DOY " + str(doy)[0:3] + ", " + man)
+    plt.savefig(figPath)
+    #plt.show()
+
 
 
 def plotNominalYaw(orbitData, filename, savefig=False):
@@ -97,6 +137,7 @@ def plotNominalYaw(orbitData, filename, savefig=False):
 
     labels = mjd2hms(time)
     plt.xticks(time[::60], labels[::60])
+    #plt.xticks(time, labels)
 
     for i in range(0, len(shadow)-1):
         if shadow[i] == 1:
@@ -198,6 +239,39 @@ def plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, filename, extensio
 
     plt.legend(loc="upper right")
     plt.savefig(figPath)
+    #plt.show()
+
+
+
+def plotClockCorrections(clk, clkData, filename, extension=""):
+    figName = filename[0:14] + "_clk{}.jpg".format(extension)
+
+    subdir = filename[0:14]
+    if not os.path.exists(os.path.join(constants.FIGS, subdir)):
+        os.makedirs(os.path.join(constants.FIGS, subdir))
+
+    figPath = os.path.join(constants.FIGS, subdir, figName)
+
+    time = clkData['mjd']
+    clk_n = clkData['clk']
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(time[1:], np.diff(clk_n), marker='.', color="red", label="Old clock correction")
+
+    clk = np.divide(clk, constants.speed_of_light)
+    plt.plot(time[1:], np.diff(clk_n) - clk[:-1], marker='.', color="cornflowerblue", label="New clock correction")
+
+    labels = mjd2hms(time)
+    plt.xticks(time[::60], labels[::60])
+
+    plt.grid()
+    plt.xlabel("Time")
+    plt.ylabel("Clock correction (sec)")
+
+    plt.legend(loc="upper right")
+    plt.savefig(figPath)
+    #plt.show()
+
 
 
 def plotLogInfo(noiseValues, filename, extension):

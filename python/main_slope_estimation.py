@@ -11,7 +11,7 @@ if __name__ == '__main__':
 
     for file in slope_files:
         slopeData = utils.getSlopeData(file)
-        graphics.plotSlopeOverBeta(slopeData)
-        graphics.plotInvertedOverBeta(slopeData)
-        graphics.plotEstimatedSlopeOverBeta(slopeData)
+        graphics.plotSlopeOverBeta(slopeData, extension=file[0:3])
+        graphics.plotInvertedOverBeta(slopeData, extension=file[0:3])
+        graphics.plotEstimatedSlopeOverBeta(slopeData, extension=file[0:3])
 

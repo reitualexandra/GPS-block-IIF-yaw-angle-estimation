@@ -155,6 +155,24 @@ def solveLSE3(A, rk, y1):
     return y2, yaw_error
 
 
+def solveLSE3ClockCorrections(A, rk, y1):
+    A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
+                        2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
+    b = np.ones((len(rk), 1))
+    b = np.concatenate((b, np.zeros((1, 1))), axis=0)
+
+    A2 = np.concatenate((A2, b), axis=1)
+
+    r2 = np.append(rk, [2 * (constants.PCO_x ** 2)], axis=0)
+    AtA = A2.transpose().dot(A2)
+    x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
+
+    errors = errorbars.computeFormalError(A2, r2, x)
+    clock_error = errors[2]
+
+    return x[2], clock_error
+
+
 def solveLSEModel1(residualData, orbitData, stationsData):
     """
     This function implements a simple LSE model on residual data to estimate yaw angles.
@@ -234,6 +252,30 @@ def solveLSEModel3(residualData, orbitData, stationsData):
             print("Singular matrix at epoch {}.".format(epoch))
     yaw = shiftYawPlacement(yaw, orbitData['yaw'])
     return (epochs_final, yaw, errors)
+
+
+def getCLockCorrections(residualData, orbitData, stationsData):
+    epochs = utils.getEpochsArray(residualData)
+    epochs_final = []
+    times_corr = []
+    errors = []
+
+    _, yaw_init, _ = solveLSEModel2(residualData, orbitData, stationsData)
+    yaw_init = shiftYawPlacement(yaw_init, orbitData['yaw'])
+    # yaw_init = interpolate(epochs, yaw_init)
+
+    for epoch in epochs:
+        A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
+        try:
+            tc, error = solveLSE3ClockCorrections(A, rk, yaw_init[epochs.index(epoch)])
+
+            times_corr.append(tc)
+            epochs_final.append(epoch)
+            errors.append(error)
+
+        except np.linalg.LinAlgError:
+            print("Singular matrix at epoch {}.".format(epoch))
+    return (epochs_final, times_corr, errors)
 
 
 def computeBlock1DesignMatrixWindow(residualData, orbitData, stationsData, startEpoch, endEpoch):

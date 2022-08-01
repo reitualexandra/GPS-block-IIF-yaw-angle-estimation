@@ -33,6 +33,23 @@ def getSlopeData(filename):
     return slopeData
 
 
+def getCLockData(filename):
+    clkData = {}
+
+    clkData['mjd'] = []
+    clkData['clk'] = []
+    filepath = os.path.join(constants.OUT, filename)
+
+    file = open(filepath)
+    lines = file.readlines()
+    for line in lines:
+        items = [x for x in line.split(' ') if x != ""]
+        clkData['mjd'].append(float(items[1]))
+        clkData['clk'].append(float(items[2]))
+
+    return clkData
+
+
 def getOrbData(filename):
     """
     This function reads orbit files and stores the data in a dictionary names orbitData.
@@ -128,14 +145,43 @@ def getResData(filename):
         residualData[station_index]['azi'].append(float(items[4]))
         residualData[station_index]['ele'].append(float(items[5]))
 
-
     return residualData
+
+
+
+def correctResData(orbitData, stationsData, residualData, yaw_epochs, yaw):
+
+    correctedData = {}
+    stations = list(residualData.keys())
+
+    for station_index in stations:
+        if not station_index in correctedData.keys():
+            correctedData[station_index] = {}
+            correctedData[station_index]['mjd'] = []
+            correctedData[station_index]['rk'] = []
+            correctedData[station_index]['mjd'] = residualData[station_index]['mjd']
+            correctedData[station_index]['rk'] = [0 for i in range(0, len(residualData[station_index]['rk']))]
+
+        for epoch in correctedData[station_index]['mjd']:
+            sat_epoch_index = orbitData['mjd'].index(epoch)
+            res_epoch_index = correctedData[station_index]['mjd'].index(epoch)
+            yaw_epoch_index = yaw_epochs.index(epoch)
+
+            r_sat = np.array([orbitData['x'][sat_epoch_index], orbitData['y'][sat_epoch_index], orbitData['z'][sat_epoch_index]])
+            v_sat = np.array([orbitData['vx'][sat_epoch_index], orbitData['vy'][sat_epoch_index], orbitData['vz'][sat_epoch_index]])
+
+            azi, nad = getAzimuthNadirSatellite(r_sat, v_sat, station_index, stationsData)
+            rk = residual(azi, nad, yaw[yaw_epoch_index], noise=0)
+            correctedData[station_index]['rk'][res_epoch_index] = residualData[station_index]['rk'][res_epoch_index] - rk
+
+    return correctedData
+
 
 
 def cleanResData(residualData):
     """
     This function checks that the residual signal from a certain station does not have strange variations
-    (as those that appear when many cycle slips are present). If a residual signal is detected which presents cycle slips,
+    (as those that appear when many cycle slips are present). If a residual signal is detected which presents cycle slips
     or has a standard deviation above a certain threshold, then the signal from that station is removed.
     :param residualData: dictionary containing data from .res file
     :return: dictionary containing residual data with 'noisy' stations removed
