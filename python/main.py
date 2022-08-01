@@ -25,7 +25,7 @@ if __name__ == '__main__':
             orbitData = utils.getOrbData(orbfile)
             stationsList = utils.getStationsList(orbitData, stationsData)
             residualDataReal = utils.getResData(file)
-            #residualDataReal = estimation.filterResiduals(residualDataReal)
+            residualDataReal = estimation.filterResiduals(residualDataReal)
             residualDataReal = utils.cleanResData(residualDataReal)
             Ne = len(orbitData['mjd']) - 1
 
