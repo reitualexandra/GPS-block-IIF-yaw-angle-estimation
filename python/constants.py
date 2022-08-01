@@ -1,4 +1,5 @@
 import os
+from scipy.constants import speed_of_light
 
 
 # path to directory where res and orb files are stored

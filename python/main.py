@@ -8,14 +8,11 @@ if __name__ == '__main__':
 
     stationsData = utils.getStationsData()
 
-    stationsData = utils.getStationsData()
-
     files = os.listdir(constants.OUT)
-    res_files = [x for x in files if (".res" in x or ".RES" in x) and x.startswith("YA")]
+    res_files = [x for x in files if (".res" in x or ".RES" in x) and x.startswith("YAW")]
     for file in res_files: #YAW203580M1G25.RES
         print(file)
         try:
-
             file = str(file)
             year = file[3:5]
             doy = file[5:9]
@@ -24,11 +21,11 @@ if __name__ == '__main__':
             man_simulated = "{}_sim".format(man)
 
             # Get stations data, orbit data, stations list and residuals for considered maneuver, doy, and prn
-            orbfile = filename = "YAW" + str(file[3:14]) + ".orb"  #YAW203580M1G25.orb
+            orbfile = "YAW" + str(file[3:14]) + ".orb"  #YAW203580M1G25.orb
             orbitData = utils.getOrbData(orbfile)
             stationsList = utils.getStationsList(orbitData, stationsData)
             residualDataReal = utils.getResData(file)
-            # residualDataReal = estimation.filterResiduals(residualDataReal)
+            #residualDataReal = estimation.filterResiduals(residualDataReal)
             residualDataReal = utils.cleanResData(residualDataReal)
             Ne = len(orbitData['mjd']) - 1
 
