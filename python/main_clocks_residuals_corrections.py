@@ -13,7 +13,6 @@ if __name__ == '__main__':
     for file in res_files: #YAW203580M1G25.RES
 
         try:
-
             file = str(file)
             year = file[3:5]
             doy = file[5:9]
@@ -40,7 +39,7 @@ if __name__ == '__main__':
 
             (epochs, clock_corrections, errors) = estimation.getCLockCorrections(residualDataReal, orbitData, stationsData)
             graphics.plotClockCorrections(clock_corrections, clockData, file, extension="_clocks")
-
+            '''
             (epochs, yaw, errors) = estimation.solveLSEModel1(residualDataReal, orbitData, stationsData)
             correctedResiduals = utils.correctResData(orbitData, stationsData, residualDataReal, epochs, yaw)
             graphics. plotResidualsCorrected(residualDataReal, correctedResiduals, file, extension="_model1")
@@ -56,6 +55,6 @@ if __name__ == '__main__':
             (epochs, yaw, errors) = estimation.solveLSEModel4(residualDataReal, orbitData, stationsData, Ne=Ne)
             correctedResiduals = utils.correctResData(orbitData, stationsData, residualDataReal, epochs, yaw)
             graphics.plotResidualsCorrected(residualDataReal, correctedResiduals, file, extension="_model4")
-
+            '''
         except:
             print("Error on file {}".format(file))

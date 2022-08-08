@@ -261,11 +261,17 @@ def plotClockCorrections(clk, clkData, filename, extension=""):
     time = clkData['mjd']
     clk_n = clkData['clk']
 
+    t = np.array(time)
+    m, b = np.polyfit(t, clk_n, 1)
+    clk_interpolated = m * t + b
+    clk_n = clk_n - clk_interpolated
+
     plt.figure(figsize=(12, 6))
-    plt.plot(time[1:], np.diff(clk_n), marker='.', color="red", label="Old clock correction")
+    plt.plot(time, clk_n, marker='.', color="red", label="Old clock correction")
 
     clk = np.divide(clk, constants.speed_of_light)
-    plt.plot(time[1:], np.diff(clk_n) - clk[:-1], marker='.', color="cornflowerblue", label="New clock correction")
+    plt.plot(time, clk_n + clk, marker='.', color="cornflowerblue", label="New clock correction")
+    #plt.plot(time, clk_n - clk, marker='.', color="yellow", label="SECOND New clock correction")
 
     labels = mjd2hms(time)
     plt.xticks(time[::60], labels[::60])
