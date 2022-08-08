@@ -1,6 +1,7 @@
 import os
 import constants
 import numpy as np
+from estimation import getCLockCorrections
 
 
 def getSlopeData(filename):
@@ -155,6 +156,7 @@ def correctResData(orbitData, stationsData, residualData, yaw_epochs, yaw):
     stations = list(residualData.keys())
 
     for station_index in stations:
+        (clock_epochs, clock_corrections, _) = getCLockCorrections(residualData, orbitData, stationsData)
         if not station_index in correctedData.keys():
             correctedData[station_index] = {}
             correctedData[station_index]['mjd'] = []
@@ -166,13 +168,15 @@ def correctResData(orbitData, stationsData, residualData, yaw_epochs, yaw):
             sat_epoch_index = orbitData['mjd'].index(epoch)
             res_epoch_index = correctedData[station_index]['mjd'].index(epoch)
             yaw_epoch_index = yaw_epochs.index(epoch)
+            clk_epoch_index = clock_epochs.index(epoch)
 
             r_sat = np.array([orbitData['x'][sat_epoch_index], orbitData['y'][sat_epoch_index], orbitData['z'][sat_epoch_index]])
             v_sat = np.array([orbitData['vx'][sat_epoch_index], orbitData['vy'][sat_epoch_index], orbitData['vz'][sat_epoch_index]])
 
             azi, nad = getAzimuthNadirSatellite(r_sat, v_sat, station_index, stationsData)
             rk = residual(azi, nad, yaw[yaw_epoch_index], noise=0)
-            correctedData[station_index]['rk'][res_epoch_index] = residualData[station_index]['rk'][res_epoch_index] - rk
+
+            correctedData[station_index]['rk'][res_epoch_index] = residualData[station_index]['rk'][res_epoch_index] - rk - clock_corrections[clk_epoch_index]
 
     return correctedData
 

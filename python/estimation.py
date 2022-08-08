@@ -420,6 +420,54 @@ def solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_i
     return epochs, yaw, yaw_error
 
 
+def solveLSE4ClocksBiases(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init):
+    """
+    This function solves the fourth model and outputs an array of clocks and bias correction values alongside their corresponding epochs.
+    All correction values correspond to the interval between startEpoch and endEpoch.
+    """
+    A, rk = computeGrandDesignMatrix(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
+
+    trimmedResData = utils.trimResDataWindow(residualData, startEpoch, endEpoch)
+    epochs = utils.getEpochsArray(trimmedResData)
+    Ne = len(epochs)
+
+    AtA = A.transpose().dot(A)
+    x = np.linalg.inv(AtA).dot(A.transpose()).dot(rk)
+
+    clocks = []
+    biases = []
+
+    for i in range(Ne*2, Ne*3):
+        clocks.append(x[i])
+    for i in range(Ne * 3, len(x)):
+        biases.append(x[i])
+
+    return epochs, clocks, biases
+
+
+def solveLSEModel4ClocksBiases(residualData, orbitData, stationsData, Ne=5):
+    epochs, yaw_init, _ = solveLSEModel3(residualData, orbitData, stationsData)
+    yaw_init = shiftYawPlacement(yaw_init, orbitData['yaw'])
+    # yaw_init = interpolate(epochs, yaw_init)
+
+    clk = []
+    epoch_final = []
+    bias = []
+    for epoch in epochs[::Ne]:
+        try:
+            startEpoch = epoch
+            endEpoch = epochs[epochs.index(epoch) + Ne]
+            e, c, b = solveLSE4ClocksBiases(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
+
+            clk = clk + c
+            epoch_final = epoch_final + e
+            bias = bias + b
+        except (np.linalg.LinAlgError, IndexError):
+            print("Singular A matrix for epoch {}".format(epoch))
+    return epoch_final, clk, bias
+
+
+
 def solveLSEModel4(residualData, orbitData, stationsData, Ne=5):
     """
     This function iterates through groups of epochs (grouped in bins with Ne epochs each).

@@ -31,10 +31,12 @@ if __name__ == '__main__':
 
             stationsList = utils.getStationsList(orbitData, stationsData)
             residualDataReal = utils.getResData(file)
-            #residualDataReal = estimation.filterResiduals(residualDataReal)
+            residualDataReal = estimation.filterResiduals(residualDataReal)
             residualDataReal = utils.cleanResData(residualDataReal)
 
             graphics.plotResiduals(residualDataReal, stationsData, file)
+
+            #(epochs, clk, bias) = estimation.solveLSEModel4ClocksBiases(residualDataReal, orbitData, stationsData, Ne=Ne)
 
             (epochs, clock_corrections, errors) = estimation.getCLockCorrections(residualDataReal, orbitData, stationsData)
             graphics.plotClockCorrections(clock_corrections, clockData, file, extension="_clocks")
