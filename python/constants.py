@@ -24,3 +24,5 @@ CS_THRESHOLD = 0.08
 PCO_x = 0.393
 PCO_y = -0.017
 PCO_z = 1.274
+
+N_ITER = 15

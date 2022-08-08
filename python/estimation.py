@@ -98,12 +98,9 @@ def solveLSE(A, rk):
     """
     AtA = A.transpose().dot(A)
     x = np.linalg.inv(AtA).dot(A.transpose()).dot(rk)
-    yaw = np.rad2deg(np.arctan2(x[1], x[0]))
 
     errors = errorbars.computeFormalError(A, rk, x)
-    yaw_error = np.rad2deg(np.arctan2(errors[1], errors[0]))
-
-    return yaw, yaw_error
+    return x, errors
 
 
 def solveLSE2(A, rk, y1):
@@ -114,7 +111,6 @@ def solveLSE2(A, rk, y1):
     :param rk: measurements vector (residual)
     :return: yaw estimated from LSE solution
     """
-    #y1, _ = solveLSE(A, rk)
     A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
                         2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
     r2 = np.append(rk, [2 * (constants.PCO_x ** 2)], axis=0)
@@ -122,10 +118,18 @@ def solveLSE2(A, rk, y1):
     x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
 
     errors = errorbars.computeFormalError(A2, r2, x)
-    yaw_error = np.rad2deg(np.arctan2(errors[1], errors[0]))
+    return x, errors
 
-    y2 = np.rad2deg(np.arctan2(x[1], x[0]))
-    return y2, yaw_error
+
+def solveLSE2Iterative(A, rk, y1):
+
+    X, _ = solveLSE2(A, rk, y1)
+    for i in range(0, constants.N_ITER):
+        yaw = np.rad2deg(np.arctan2(X[1], X[0]))
+        X, errors = solveLSE2(A, rk, yaw)
+
+    return X, errors
+
 
 
 def solveLSE3(A, rk, y1):
@@ -136,7 +140,6 @@ def solveLSE3(A, rk, y1):
     :param rk: measurements vector (residual)
     :return: yaw estimated from LSE solution
     """
-    #y1, _ = solveLSE(A, rk)
     A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
                         2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
     b = np.ones((len(rk), 1))
@@ -149,28 +152,24 @@ def solveLSE3(A, rk, y1):
     x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
 
     errors = errorbars.computeFormalError(A2, r2, x)
-    yaw_error = np.rad2deg(np.arctan2(errors[1], errors[0]))
+    return x, errors
 
-    y2 = np.rad2deg(np.arctan2(x[1], x[0]))
-    return y2, yaw_error
+
+
+def solveLSE3Iterative(A, rk, y1):
+
+    X, _ = solveLSE3(A, rk, y1)
+    for i in range(0, constants.N_ITER):
+        yaw = np.rad2deg(np.arctan2(X[1], X[0]))
+        X, errors = solveLSE3(A, rk, yaw)
+
+    return X, errors
 
 
 def solveLSE3ClockCorrections(A, rk, y1):
-    A2 = np.append(A, [[2 * constants.PCO_x * np.cos(np.deg2rad(y1)),
-                        2 * constants.PCO_x * np.sin(np.deg2rad(y1))]], axis=0)
-    b = np.ones((len(rk), 1))
-    b = np.concatenate((b, np.zeros((1, 1))), axis=0)
+    x, errors = solveLSE3Iterative(A, rk, y1)
+    return x[2], errors[2]
 
-    A2 = np.concatenate((A2, b), axis=1)
-
-    r2 = np.append(rk, [2 * (constants.PCO_x ** 2)], axis=0)
-    AtA = A2.transpose().dot(A2)
-    x = np.linalg.inv(AtA).dot(A2.transpose()).dot(r2)
-
-    errors = errorbars.computeFormalError(A2, r2, x)
-    clock_error = errors[2]
-
-    return x[2], clock_error
 
 
 def solveLSEModel1(residualData, orbitData, stationsData):
@@ -187,15 +186,17 @@ def solveLSEModel1(residualData, orbitData, stationsData):
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-        y, error = solveLSE(A, rk)
+        x, error = solveLSE(A, rk)
+        y = np.rad2deg(np.arctan2(x[1], x[0]))
+        e = np.rad2deg(np.arctan2(error[1], error[0]))
 
         yaw.append(y)
-        errors.append(error)
+        errors.append(e)
     yaw = shiftYawPlacement(yaw, orbitData['yaw'])
     return (epochs, yaw, errors)
 
 
-def solveLSEModel2(residualData, orbitData, stationsData):
+def solveLSEModel2(residualData, orbitData, stationsData, iterative=True):
     """
     This function implements a simple LSE model on residual data to estimate yaw angles, while using a restraint condition.
     :param residualData: dictionary containing data read from .res file
@@ -208,11 +209,15 @@ def solveLSEModel2(residualData, orbitData, stationsData):
     errors = []
     _, yaw_init, _ = solveLSEModel1(residualData, orbitData, stationsData)
     yaw_init = shiftYawPlacement(yaw_init, orbitData['yaw'])
-    #yaw_init = interpolate(epochs, yaw_init)
 
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
-        y2, error = solveLSE2(A, rk, yaw_init[epochs.index(epoch)])
+        if iterative:
+            x, e = solveLSE2Iterative(A, rk, yaw_init[epochs.index(epoch)])
+        else:
+            x, e = solveLSE2(A, rk, yaw_init[epochs.index(epoch)])
+        error = np.rad2deg(np.arctan2(e[1], e[0]))
+        y2 = np.rad2deg(np.arctan2(x[1], x[0]))
 
         yaw.append(y2)
         errors.append(error)
@@ -221,7 +226,7 @@ def solveLSEModel2(residualData, orbitData, stationsData):
     return (epochs, yaw, errors)
 
 
-def solveLSEModel3(residualData, orbitData, stationsData):
+def solveLSEModel3(residualData, orbitData, stationsData, iterative=True):
     """
     This function implements a simple LSE model on residual data to estimate yaw angles, while using a restraint condition
     and also estimating satellite clock corrections. TODO add satellite clocks to output and plots.
@@ -242,7 +247,14 @@ def solveLSEModel3(residualData, orbitData, stationsData):
     for epoch in epochs:
         A, rk = computeBlock1DesignMatrix(residualData, orbitData, stationsData, epoch)
         try:
-            y2, error = solveLSE3(A, rk, yaw_init[epochs.index(epoch)])
+            #x, e = solveLSE3(A, rk, yaw_init[epochs.index(epoch)])
+            if iterative:
+                x, e = solveLSE3Iterative(A, rk, yaw_init[epochs.index(epoch)])
+            else:
+                x, e = solveLSE3(A, rk, yaw_init[epochs.index(epoch)])
+
+            error = np.rad2deg(np.arctan2(e[1], e[0]))
+            y2 = np.rad2deg(np.arctan2(x[1], x[0]))
 
             yaw.append(y2)
             epochs_final.append(epoch)
@@ -347,7 +359,7 @@ def computeBlock3DesignMatrixWindow(residualData, startEpoch, endEpoch):
     for epoch in epochs:
         C = np.zeros((nr_st, len(epochs)))
         C[:, epochs.index(epoch)] = 1
-        C = np.concatenate((C, 0.1*np.eye(nr_st)), axis=1)
+        C = np.concatenate((C, np.eye(nr_st)), axis=1)
         try:
             grandDesignMatrixBlock3 = np.concatenate((grandDesignMatrixBlock3, C), axis=0)
         except:
@@ -384,12 +396,6 @@ def computeGrandDesignMatrix(residualData, orbitData, stationsData, startEpoch, 
     grandDesignMatrix = np.concatenate((grandDesignMatrix, B), axis=1)
     Rk = np.concatenate((rk, rk2), axis=0)
 
-    #Ne = 360
-    #grandDesignMatrix = np.concatenate((A1, A2), axis=0)
-    #B = np.concatenate((A3[:, 0:Ne], A4[:, 0:Ne]), axis=0)
-    #grandDesignMatrix = np.concatenate((grandDesignMatrix, B), axis=1)
-    #Rk = np.concatenate((rk, rk2), axis=0)
-
     return grandDesignMatrix, Rk
 
 
@@ -402,22 +408,27 @@ def solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_i
 
     trimmedResData = utils.trimResDataWindow(residualData, startEpoch, endEpoch)
     epochs = utils.getEpochsArray(trimmedResData)
-    Ne = len(epochs)
 
     AtA = A.transpose().dot(A)
     x = np.linalg.inv(AtA).dot(A.transpose()).dot(rk)
-
-    yaw = []
-    yaw_error = []
-
     errors = errorbars.computeFormalError(A, rk, x)
-    for i in range(0, Ne*2, 2):
-        x0 = x[i]
-        y0 = x[i+1]
-        yaw.append(np.rad2deg(np.arctan2(y0, x0)))
-        yaw_error.append(np.rad2deg(np.arctan2(errors[i+1], errors[i])))
 
-    return epochs, yaw, yaw_error
+    return epochs, x, errors
+
+
+def solveLSE4Iterative(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init):
+
+    epochs, X, _ = solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
+    for i in range(0, constants.N_ITER):
+        yaw = []
+        for i in range(0, len(epochs) * 2, 2):
+            x0 = X[i]
+            y0 = X[i + 1]
+            yaw.append(np.rad2deg(np.arctan2(y0, x0)))
+
+        epochs, X, errors = solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw)
+
+    return epochs, X, errors
 
 
 def solveLSE4ClocksBiases(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init):
@@ -425,15 +436,10 @@ def solveLSE4ClocksBiases(residualData, orbitData, stationsData, startEpoch, end
     This function solves the fourth model and outputs an array of clocks and bias correction values alongside their corresponding epochs.
     All correction values correspond to the interval between startEpoch and endEpoch.
     """
-    A, rk = computeGrandDesignMatrix(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
 
-    trimmedResData = utils.trimResDataWindow(residualData, startEpoch, endEpoch)
-    epochs = utils.getEpochsArray(trimmedResData)
+    epochs, x, _ = solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
     Ne = len(epochs)
-
-    AtA = A.transpose().dot(A)
-    x = np.linalg.inv(AtA).dot(A.transpose()).dot(rk)
-
+    _, yaw, _ = solveLSEModel4(residualData, orbitData, stationsData)
     clocks = []
     biases = []
 
@@ -442,53 +448,39 @@ def solveLSE4ClocksBiases(residualData, orbitData, stationsData, startEpoch, end
     for i in range(Ne * 3, len(x)):
         biases.append(x[i])
 
-    return epochs, clocks, biases
-
-
-def solveLSEModel4ClocksBiases(residualData, orbitData, stationsData, Ne=5):
-    epochs, yaw_init, _ = solveLSEModel3(residualData, orbitData, stationsData)
-    yaw_init = shiftYawPlacement(yaw_init, orbitData['yaw'])
-    # yaw_init = interpolate(epochs, yaw_init)
-
-    clk = []
-    epoch_final = []
-    bias = []
-    for epoch in epochs[::Ne]:
-        try:
-            startEpoch = epoch
-            endEpoch = epochs[epochs.index(epoch) + Ne]
-            e, c, b = solveLSE4ClocksBiases(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
-
-            clk = clk + c
-            epoch_final = epoch_final + e
-            bias = bias + b
-        except (np.linalg.LinAlgError, IndexError):
-            print("Singular A matrix for epoch {}".format(epoch))
-    return epoch_final, clk, bias
+    return epochs, yaw, clocks, biases
 
 
 
-def solveLSEModel4(residualData, orbitData, stationsData, Ne=5):
+def solveLSEModel4(residualData, orbitData, stationsData, Ne=5, iterative=False):
     """
     This function iterates through groups of epochs (grouped in bins with Ne epochs each).
     For each bin the fourth model estimation is applied. This can also be applied for all available epochs
     at once yielding more precise results than applying it for smaller time intervals.
     """
-    #epochs, yaw_init, _ = solveLSEModel3(residualData, orbitData, stationsData)
-    #yaw_init = filterLowpass(yaw_init, Wn=0.1, N=4)
-
     epochs, yaw_init, _ = solveLSEModel3(residualData, orbitData, stationsData)
     yaw_init = shiftYawPlacement(yaw_init, orbitData['yaw'])
-    #yaw_init = interpolate(epochs, yaw_init)
 
     yaw = []
     epoch_final = []
     errors = []
+
     for epoch in epochs[::Ne]:
         try:
             startEpoch = epoch
             endEpoch = epochs[epochs.index(epoch)+Ne]
-            e, y, error = solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
+            if iterative:
+                e, x, err = solveLSE4Iterative(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
+            else:
+                e, x, err = solveLSE4(residualData, orbitData, stationsData, startEpoch, endEpoch, yaw_init)
+
+            y = []
+            error = []
+            for i in range(0, Ne * 2, 2):
+                x0 = x[i]
+                y0 = x[i + 1]
+                y.append(np.rad2deg(np.arctan2(y0, x0)))
+                error.append(np.rad2deg(np.arctan2(err[i + 1], err[i])))
 
             yaw = yaw + y
             epoch_final = epoch_final + e
@@ -510,9 +502,6 @@ def shiftYawPlacement(yaw_estimated, yaw_nominal, Ne=3): # TODO shifting functio
             for _ in range(0, 2):
                 if np.sqrt((yaw - median_value) ** 2) > 200:
                     yaw_estimated[index] = yaw + 360 * np.sign(yaw_estimated[index-1])
-                    #yaw_estimated[index] = yaw + 360 * np.sign(median_value)
-                    #if np.sqrt((yaw - median_value) ** 2) > 200 or np.sqrt((yaw - yaw_estimated[index - 1]) ** 2) > 200:
-                    #    yaw_estimated[index] = yaw - 2 * 360 * np.sign(yaw_estimated[index - 1])
     return yaw_estimated
 
 

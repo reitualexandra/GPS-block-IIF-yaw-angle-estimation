@@ -68,6 +68,7 @@ def plotResiduals(residualData, stationsData, filename):
     plt.title("PRN " + str(prn) + ", DOY " + str(doy)[0:3] + ", " + man)
     plt.savefig(figPath)
     #plt.show()
+    plt.close('all')
 
 
 def plotResidualsCorrected(residualData, correctedResidualData, filename, extension=""):
@@ -105,6 +106,7 @@ def plotResidualsCorrected(residualData, correctedResidualData, filename, extens
     plt.title("PRN " + str(prn) + ", DOY " + str(doy)[0:3] + ", " + man)
     plt.savefig(figPath)
     #plt.show()
+    plt.close('all')
 
 
 
@@ -149,6 +151,7 @@ def plotNominalYaw(orbitData, filename, savefig=False):
               man + ", " + min(beta) + "° < ß < " + max(beta) + "°")
     if savefig:
         plt.savefig(figPath)
+        plt.close('all')
     else:
         return plt
 
@@ -178,6 +181,7 @@ def plotEstimatedYaw(epochs, yaw, orbitData, filename, extension=""):
 
     plt.legend(loc="upper right")
     plt.savefig(figPath)
+    plt.close('all')
 
 
 
@@ -209,6 +213,7 @@ def plotEstimatedYawInterpolated(epochs, yaw, orbitData, filename, extension="")
 
     plt.legend(loc="upper right")
     plt.savefig(figPath)
+    plt.close('all')
 
 
 def plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, filename, extension=""):
@@ -224,7 +229,7 @@ def plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, filename, extensio
     :return:
     """
     figName = filename[0:14] + "_yawest{}.jpg".format(extension)
-    errors = [x*0.5 for x in errors]
+    #errors = [x*0.5 for x in errors]
     yaw = [x * (-1) for x in yaw]
 
     subdir = filename[0:14]
@@ -240,6 +245,7 @@ def plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, filename, extensio
     plt.legend(loc="upper right")
     plt.savefig(figPath)
     #plt.show()
+    plt.close('all')
 
 
 
@@ -271,6 +277,7 @@ def plotClockCorrections(clk, clkData, filename, extension=""):
     plt.legend(loc="upper right")
     plt.savefig(figPath)
     #plt.show()
+    plt.close('all')
 
 
 
@@ -333,6 +340,7 @@ def plotLogInfo(noiseValues, filename, extension):
     plt.ylabel("Mean errors (deg)")
     plt.title("Mean formal errors variation with noise")
     plt.savefig(figPath + "_err.jpg")
+    plt.close('all')
 
 
 def plotSlopeOverBeta(slopeData, extension=""):
