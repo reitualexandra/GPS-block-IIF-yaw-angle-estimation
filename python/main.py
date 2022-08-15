@@ -25,8 +25,8 @@ if __name__ == '__main__':
             orbitData = utils.getOrbData(orbfile)
             stationsList = utils.getStationsList(orbitData, stationsData)
             residualDataReal = utils.getResData(file)
-            #residualDataReal = estimation.filterResiduals(residualDataReal)
             residualDataReal = utils.cleanResData(residualDataReal)
+            #residualDataReal = estimation.filterResiduals(residualDataReal)
             Ne = len(orbitData['mjd']) - 1
 
             # Estimate yaw from real residuals
@@ -42,6 +42,7 @@ if __name__ == '__main__':
                                                extension="_real_model2_bars")
 
             (epochs, yaw, errors) = estimation.solveLSEModel3(residualDataReal, orbitData, stationsData)
+            #graphics.plotEstimatedYawInterpolated(epochs, yaw, orbitData, file, extension="_real_model3_bars")
             #graphics.plotEstimatedYawInterpolated(epochs, yaw, orbitData, file, extension="_real_model3")
             graphics.plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, file,
                                                extension="_real_model3_bars")

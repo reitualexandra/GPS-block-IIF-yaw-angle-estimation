@@ -13,5 +13,7 @@ if __name__ == '__main__':
         slopeData = utils.getSlopeData(file)
         graphics.plotSlopeOverBeta(slopeData, extension=file[0:3])
         graphics.plotInvertedOverBeta(slopeData, extension=file[0:3])
-        graphics.plotEstimatedSlopeOverBeta(slopeData, extension=file[0:3])
+        graphics.plotEstimatedSlopeOverBeta(slopeData, extension=file[0:3], percentile=67)
+        graphics.plotEstimatedSlopeOverBeta(slopeData, extension=file[0:3], percentile=95)
+        graphics.plotEstimatedSlopeOverBeta(slopeData, extension=file[0:3], percentile=100)
 
