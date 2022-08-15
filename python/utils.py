@@ -1,7 +1,7 @@
 import os
 import constants
 import numpy as np
-from estimation import getCLockCorrections
+from estimation import getCLockCorrections, interpolate
 
 
 def getSlopeData(filename):
@@ -185,7 +185,7 @@ def correctResData(orbitData, stationsData, residualData, yaw_epochs, yaw):
 def cleanResData(residualData):
     """
     This function checks that the residual signal from a certain station does not have strange variations
-    (as those that appear when many cycle slips are present). If a residual signal is detected which presents cycle slips
+    (as those that appear when many cycle slips are present). If a residual signal is detected which presents cycle slips,
     or has a standard deviation above a certain threshold, then the signal from that station is removed.
     :param residualData: dictionary containing data from .res file
     :return: dictionary containing residual data with 'noisy' stations removed

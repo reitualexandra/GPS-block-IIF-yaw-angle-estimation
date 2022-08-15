@@ -7,10 +7,10 @@ from scipy.signal import butter, filtfilt
 from scipy.interpolate import make_lsq_spline
 
 
-def interpolate(epochs, yaw):
+def interpolate(epochs, yaw, k=10):
     yaw = filterLowpass(yaw, Wn=0.1, N=8)
     t = []
-    k = 10
+    #k = 10
     t = np.r_[(epochs[0],) * (k + 1),
               t,
               (epochs[-1],) * (k + 1)]

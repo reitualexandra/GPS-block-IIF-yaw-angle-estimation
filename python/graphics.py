@@ -83,16 +83,16 @@ def plotResidualsCorrected(residualData, correctedResidualData, filename, extens
     plt.figure(figsize=(12, 6))
 
     for station_index in residualData.keys():
-        tk1 = residualData[station_index]['mjd']
-        rk1 = residualData[station_index]['rk']
+        tk1 = residualData[station_index]['mjd'][100:-70]
+        rk1 = residualData[station_index]['rk'][100:-70]
         plt.scatter(tk1, rk1, marker='^', color='lime')
 
     for station_index in residualData.keys():
-        tk2 = correctedResidualData[station_index]['mjd']
-        rk2 = correctedResidualData[station_index]['rk']
+        tk2 = correctedResidualData[station_index]['mjd'][100:-70]
+        rk2 = correctedResidualData[station_index]['rk'][100:-70]
         plt.scatter(tk2, rk2, marker='.', color='fuchsia')
 
-    tk = utils.getEpochsArray(residualData)
+    tk = utils.getEpochsArray(residualData)[100:-70]
     labels = mjd2hms(tk)
     plt.xticks(tk[::60], labels[::60])
 
@@ -212,8 +212,9 @@ def plotEstimatedYawInterpolated(epochs, yaw, orbitData, filename, extension="")
     plt.plot(epochs, y_filt, color='tomato')
 
     plt.legend(loc="upper right")
-    plt.savefig(figPath)
-    plt.close('all')
+    plt.show()
+    ##plt.savefig(figPath)
+    ##plt.close('all')
 
 
 def plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, filename, extension=""):
@@ -229,8 +230,7 @@ def plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, filename, extensio
     :return:
     """
     figName = filename[0:14] + "_yawest{}.jpg".format(extension)
-    #errors = [x*0.5 for x in errors]
-    yaw = [x * (-1) for x in yaw]
+    yaw = [x * (-0.8) + 300 for x in yaw]
 
     subdir = filename[0:14]
     if not os.path.exists(os.path.join(constants.FIGS, subdir)):
@@ -251,6 +251,7 @@ def plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, filename, extensio
 
 def plotClockCorrections(clk, clkData, filename, extension=""):
     figName = filename[0:14] + "_clk{}.jpg".format(extension)
+    year, doy, man, prn = getDetails(filename)
 
     subdir = filename[0:14]
     if not os.path.exists(os.path.join(constants.FIGS, subdir)):
@@ -258,8 +259,9 @@ def plotClockCorrections(clk, clkData, filename, extension=""):
 
     figPath = os.path.join(constants.FIGS, subdir, figName)
 
-    time = clkData['mjd']
-    clk_n = clkData['clk']
+    time = clkData['mjd'][100:-70]
+    clk_n = np.array(clkData['clk']).dot(constants.speed_of_light)[100:-70]
+    clk = clk[100:-70]
 
     t = np.array(time)
     m, b = np.polyfit(t, clk_n, 1)
@@ -269,20 +271,18 @@ def plotClockCorrections(clk, clkData, filename, extension=""):
     plt.figure(figsize=(12, 6))
     plt.plot(time, clk_n, marker='.', color="red", label="Old clock correction")
 
-    clk = np.divide(clk, constants.speed_of_light)
     plt.plot(time, clk_n + clk, marker='.', color="cornflowerblue", label="New clock correction")
-    #plt.plot(time, clk_n - clk, marker='.', color="yellow", label="SECOND New clock correction")
 
     labels = mjd2hms(time)
     plt.xticks(time[::60], labels[::60])
 
     plt.grid()
+    plt.title("PRN " + str(prn) + ", DOY " + str(doy)[0:3] + ", " + man)
     plt.xlabel("Time")
-    plt.ylabel("Clock correction (sec)")
+    plt.ylabel("Clock correction (m)")
 
     plt.legend(loc="upper right")
     plt.savefig(figPath)
-    #plt.show()
     plt.close('all')
 
 
@@ -396,9 +396,7 @@ def plotInvertedOverBeta(slopeData, extension=""):
     plt.savefig(figPath)
 
 
-def plotEstimatedSlopeOverBeta(slopeData, extension=""):
-    figName = "SlopeEstOverBeta_{}.jpg".format(extension)
-    figPath = os.path.join(constants.FIGS, figName)
+def plotEstimatedSlopeOverBeta(slopeData, extension="", percentile=100):
 
     noonSlopes = []
     noonBetas = []
@@ -413,6 +411,21 @@ def plotEstimatedSlopeOverBeta(slopeData, extension=""):
             midnSlopes.append(slopeData['slope_r'][index])
             midnBetas.append(slopeData['beta'][index])
 
+    noonMax = np.percentile(noonSlopes, percentile)
+    noonMin = np.percentile(noonSlopes, 100-percentile)
+    for item in noonSlopes:
+        if item < noonMin or item > noonMax:
+            index = noonSlopes.index(item)
+            noonBetas.pop(index)
+            noonSlopes.pop(index)
+
+    midnMax = np.percentile(midnSlopes, percentile)
+    midnMin = np.percentile(midnSlopes, 100 - percentile)
+    for item in midnSlopes:
+        if item < midnMin or item > midnMax:
+            index = midnSlopes.index(item)
+            midnBetas.pop(index)
+            midnSlopes.pop(index)
 
     plt.figure(figsize=(12, 6))
     plt.scatter(noonBetas, noonSlopes, marker='o', color='fuchsia', zorder=1, label="Noon turns")
@@ -421,9 +434,20 @@ def plotEstimatedSlopeOverBeta(slopeData, extension=""):
     plt.grid()
     plt.xlabel("ß (deg)")
     plt.ylabel("Slope (deg/s)")
-    plt.title("Estimated slope over ß angle. Estimated median slope:\n noon: {:.3f} (deg/s), midn: {:.3f} (deg/s)".format(
-        np.median(noonSlopes), np.median(midnSlopes)))
     plt.legend(loc="upper right")
-    plt.savefig(figPath)
+
+    if percentile<100:
+        plt.title(
+            "Estimated slope over ß angle, {}th percentile. Estimated average slope:\n noon: {:.4f} (deg/s), midn: {:.4f} (deg/s)".format(
+                percentile, np.mean(noonSlopes), np.mean(midnSlopes)))
+        figName = "SlopeEstOverBeta_{}_{}.jpg".format(extension, percentile)
+        figPath = os.path.join(constants.FIGS, figName)
+        plt.savefig(figPath)
+    else:
+        plt.title("Estimated slope over ß angle. Estimated average slope:\n noon: {:.4f} (deg/s), midn: {:.4f} (deg/s)".format(
+            np.mean(noonSlopes), np.mean(midnSlopes)))
+        figName = "SlopeEstOverBeta_{}.jpg".format(extension)
+        figPath = os.path.join(constants.FIGS, figName)
+        plt.savefig(figPath)
 
 
