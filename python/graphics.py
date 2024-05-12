@@ -230,7 +230,7 @@ def plotEstimatedYawErrorbars(epochs, yaw, errors, orbitData, filename, extensio
     :return:
     """
     figName = filename[0:14] + "_yawest{}.jpg".format(extension)
-    yaw = [x * (-0.8) + 300 for x in yaw]
+    yaw = [x * (-1) for x in yaw]
 
     subdir = filename[0:14]
     if not os.path.exists(os.path.join(constants.FIGS, subdir)):
