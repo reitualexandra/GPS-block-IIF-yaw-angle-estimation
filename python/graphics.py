@@ -85,19 +85,19 @@ def plotResidualsCorrected(residualData, correctedResidualData, filename, extens
     for station_index in residualData.keys():
         tk1 = residualData[station_index]['mjd'][100:-70]
         rk1 = residualData[station_index]['rk'][100:-70]
-        plt.scatter(tk1, rk1, marker='^', color='lime')
+        plt.scatter(tk1, rk1, marker='^', color='lightblue')
 
     for station_index in residualData.keys():
         tk2 = correctedResidualData[station_index]['mjd'][100:-70]
         rk2 = correctedResidualData[station_index]['rk'][100:-70]
-        plt.scatter(tk2, rk2, marker='.', color='fuchsia')
+        plt.scatter(tk2, rk2, marker='.', color='red')
 
     tk = utils.getEpochsArray(residualData)[100:-70]
     labels = mjd2hms(tk)
     plt.xticks(tk[::60], labels[::60])
 
-    lime_patch = mpatches.Patch(color='lime', label='Original residuals')
-    purple_patch = mpatches.Patch(color='fuchsia', label='Corrected residuals')
+    lime_patch = mpatches.Patch(color='lightblue', label='Original residuals')
+    purple_patch = mpatches.Patch(color='red', label='Corrected residuals')
     plt.legend(handles=[lime_patch, purple_patch], loc='lower right')
     # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), mode="expand")
     plt.grid()
@@ -354,8 +354,8 @@ def plotSlopeOverBeta(slopeData, extension=""):
     figPath = os.path.join(constants.FIGS, figName)
 
     plt.figure(figsize=(12, 6))
-    plt.scatter(slopeData['beta'], slopeData['slope_n'], marker='o', color='fuchsia', zorder=1, label="Modeled")
-    plt.scatter(slopeData['beta'], slopeData['slope_r'], marker='^', color='lime', zorder=1, label="Measured")
+    plt.scatter(slopeData['beta'], slopeData['slope_n'], marker='o', color='red', zorder=1, label="Modeled")
+    plt.scatter(slopeData['beta'], slopeData['slope_r'], marker='^', color='lightblue', zorder=1, label="Measured")
 
     plt.grid()
     plt.xlabel("ß (deg)")
@@ -384,8 +384,8 @@ def plotInvertedOverBeta(slopeData, extension=""):
             normBetas.append(slopeData['beta'][i])
             normVal.append(slopeData['inverted'][i])
 
-    plt.scatter(invBetas, invVal, marker='o', color='fuchsia', zorder=1, label="Inverted", s=80)
-    plt.scatter(normBetas, normVal, marker='^', color='lime', zorder=1, label="Normal", s=80)
+    plt.scatter(invBetas, invVal, marker='o', color='red', zorder=1, label="Inverted", s=80)
+    plt.scatter(normBetas, normVal, marker='^', color='lightblue', zorder=1, label="Normal", s=80)
     plt.yticks([-0.25, 0, 0.5, 1, 1.25], ["", "+", "", "-", ""])
 
     plt.grid()
@@ -428,8 +428,8 @@ def plotEstimatedSlopeOverBeta(slopeData, extension="", percentile=100):
             midnSlopes.pop(index)
 
     plt.figure(figsize=(12, 6))
-    plt.scatter(noonBetas, noonSlopes, marker='o', color='fuchsia', zorder=1, label="Noon turns")
-    plt.scatter(midnBetas, midnSlopes, marker='^', color='lime', zorder=1, label="Midnight turns")
+    plt.scatter(noonBetas, noonSlopes, marker='o', color='red', zorder=1, label="Noon turns")
+    plt.scatter(midnBetas, midnSlopes, marker='^', color='lightblue', zorder=1, label="Midnight turns")
 
     plt.grid()
     plt.xlabel("ß (deg)")
